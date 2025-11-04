@@ -1,7 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    // id("com.google.gms.google-services") // TODO: Firebase 설정 후 활성화
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -60,6 +60,7 @@ dependencies {
     implementation("com.google.firebase:firebase-auth-ktx")
     implementation("com.google.firebase:firebase-messaging-ktx")
     implementation("com.google.android.gms:play-services-auth:20.7.0")
+    implementation("com.google.firebase:firebase-analytics")
     
     // Google APIs
     implementation("com.google.api-client:google-api-client-android:2.2.0")
