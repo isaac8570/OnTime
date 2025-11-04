@@ -1,5 +1,66 @@
 # OnTime - 비서형 AI 경로 및 알림 앱
 
+## 현재 구현 상태
+
+✅ **완료된 항목:**
+- 전체 프로젝트 구조 및 패키지 구성
+- UI 레이어 (Activity, Fragment, ViewModel)
+- Data 레이어 (Models, Repositories)
+- API 레이어 (Retrofit 서비스 인터페이스)
+- Service 레이어 (Worker, Notification, Auth)
+- Util 레이어 (Constants, DateUtil, Logger, LocationConverter)
+- 레이아웃 XML 파일 (5개)
+- 리소스 파일 (strings.xml, colors.xml)
+- Gradle 빌드 설정
+
+🔨 **구현 필요 (TODO):**
+- Google Calendar API 연동
+- Google Maps Directions API 연동
+- Gemini API 연동
+- Firebase Authentication 구현
+- WorkManager 백그라운드 작업 로직
+- 알림 스케줄링 및 표시 로직
+- RecyclerView Adapter 구현
+
+## 시작하기
+
+### 1. 필수 요구사항
+- Android Studio Hedgehog (2023.1.1) 이상
+- JDK 8 이상
+- Android SDK (minSdk 24, targetSdk 34)
+
+### 2. API 키 설정
+다음 API 키를 발급받아 `Constants.kt`에 추가해야 합니다:
+
+```kotlin
+// app/src/main/kotlin/com/OnTime/ontime/util/Constants.kt
+const val GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"
+const val GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
+```
+
+**API 키 발급 링크:**
+- [Google Maps Platform](https://console.cloud.google.com/google/maps-apis)
+- [Gemini API](https://makersuite.google.com/app/apikey)
+- [Firebase Console](https://console.firebase.google.com/)
+
+### 3. Firebase 설정
+1. Firebase Console에서 프로젝트 생성
+2. Android 앱 추가 (패키지명: `com.yourcompany.ontime`)
+3. `google-services.json` 파일을 `app/` 디렉토리에 추가
+4. Authentication, Cloud Messaging 활성화
+
+### 4. 빌드 및 실행
+```bash
+# 프로젝트 클론 후
+cd OnTime
+
+# Gradle 빌드
+./gradlew build
+
+# 앱 실행 (디바이스 연결 필요)
+./gradlew installDebug
+```
+
 ## 프로젝트 구조
 
 ### 1. 프로젝트 레벨 및 기본 파일

@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">OnTime</string>
+    
+    <!-- Auth -->
+    <string name="google_sign_in">Google 계정으로 로그인</string>
+    
+    <!-- Calendar -->
+    <string name="my_schedule">내 일정</string>
+    <string name="no_events">일정이 없습니다</string>
+    
+    <!-- Event Detail -->
+    <string name="event_title">일정 제목</string>
+    <string name="route_info">경로 정보</string>
+    <string name="departure_time">출발 시간</string>
+    
+    <!-- Settings -->
+    <string name="settings">설정</string>
+    <string name="transport_mode">이동 수단</string>
+    <string name="transit">대중교통</string>
+    <string name="driving">자가용</string>
+    <string name="walking">도보</string>
+    <string name="notification_tone">알림 톤</string>
+    <string name="strong_tone">강한 버전 사용</string>
+    
+    <!-- Notifications -->
+    <string name="time_to_depart">출발할 시간입니다</string>
+    <string name="did_you_leave">출발하셨나요?</string>
+</resources>
