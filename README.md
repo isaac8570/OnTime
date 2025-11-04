@@ -1,5 +1,10 @@
-1. 프로젝트 레벨 및 기본 파일
+# OnTime - 비서형 AI 경로 및 알림 앱
 
+## 프로젝트 구조
+
+### 1. 프로젝트 레벨 및 기본 파일
+
+```
 OnTime (Root Project)
 ├── build.gradle.kts (project)  // 프로젝트 설정
 ├── build.gradle.kts (app)      // 앱 모듈 종속성 및 설정
@@ -9,11 +14,14 @@ OnTime (Root Project)
 │   │   ├── strings.xml         // 모든 문자열 리소스
 │   │   └── colors.xml          // 디자인 색상 정의
 └── app/src/main/kotlin/com/yourcompany/ontime
-└── ... (하위 Kotlin 패키지)
+    └── ... (하위 Kotlin 패키지)
+```
 
+### 2. Kotlin 소스 코드 구조 (com/yourcompany/ontime)
 
-2. Kotlin 소스 코드 구조 (com/yourcompany/ontime)
+```
 
+```
 app/src/main/kotlin/com/yourcompany/ontime
 ├── api (외부 서비스 통신)
 │   ├── DirectionsService.kt   // Google Maps Directions API
@@ -50,7 +58,9 @@ app/src/main/kotlin/com/yourcompany/ontime
     ├── DateUtil.kt            // 날짜 및 시간 유틸리티
     ├── Logger.kt              // 커스텀 로깅
     └── LocationConverter.kt   // 주소-위경도 변환 헬퍼
-### 구글 캘린더 - 경로 계산 및 알림 아이디어
+```
+
+## 구글 캘린더 - 경로 계산 및 알림 아이디어
 
 https://developers.google.com/workspace/calendar/api/guides/overview?hl=ko
 
@@ -134,9 +144,9 @@ Gemini API는 사용자의 설정에 따라 맞춤화된 알림 메시지를 생
 | **강한 버전** | "당신은 절대 지각을 허용하지 않는 단호하고 엄격한 비서입니다. 단답형으로 경고하십시오." | "경고! [XX역]까지 20분 남았습니다. 즉시 출발하세요." |
 | **약한 버전** | "당신은 친절하고 부드러운 비서입니다. 격려하는 톤으로 알림을 보내세요." | "[XX역]으로 출발할 시간이에요. 부드럽게 준비하시고, 오늘도 즐거운 하루 보내세요!" |
 
-### **Gemini API 요청 예시 (의사 코드)**
+### Gemini API 요청 예시 (의사 코드)
 
-```
+```javascript
 // 알림 메시지 생성을 위한 LLM 호출
 const prompt = `사용자의 다음 일정: ${일정_제목}. 출발해야 할 시간입니다. 이동 수단은 ${이동_수단}이고 목적지는 ${도착지}입니다. 이 상황에 맞는 알림 메시지를 생성해 주세요.`;
 
@@ -147,5 +157,4 @@ const payload = {
     systemInstruction: { parts: [{ text: systemPrompt }] },
 };
 // ... API 호출 및 메시지 추출
-
 ```
