@@ -81,8 +81,6 @@ OnTime (Root Project)
 ### 2. Kotlin 소스 코드 구조 (com/yourcompany/ontime)
 
 ```
-
-```
 app/src/main/kotlin/com/yourcompany/ontime
 ├── api (외부 서비스 통신)
 │   ├── DirectionsService.kt   // Google Maps Directions API
