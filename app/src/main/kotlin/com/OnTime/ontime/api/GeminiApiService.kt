@@ -1,40 +1,43 @@
 package com.OnTime.ontime.api
 
-import retrofit2.Response
-import retrofit2.http.Body
-import retrofit2.http.POST
-import retrofit2.http.Query
+import com.OnTime.ontime.BuildConfig
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.content
+import com.google.ai.client.generativeai.type.generationConfig
 
-interface GeminiApiService {
-    
-    @POST("v1beta/models/gemini-pro:generateContent")
-    suspend fun generateContent(
-        @Body request: GeminiRequest,
-        @Query("key") apiKey: String
-    ): Response<GeminiResponse>
+class GeminiApiService {
+
+    private val model = GenerativeModel(
+        modelName = "gemini-2.0-flash-exp",
+        apiKey = BuildConfig.GEMINI_API_KEY,
+        generationConfig = generationConfig {
+            temperature = 0.7f
+            maxOutputTokens = 100
+        }
+    )
+
+    suspend fun generateNotificationText(
+        temp: String,
+        weather: String,
+        destination: String,
+        userTone: String
+    ): String {
+        val systemInstruction = """
+            당신은 사용자의 개인 비서이며, ${userTone} 톤으로 응답해야 합니다. 
+            도착지 온도는 ${temp}이고, ${destination}에 ${weather}이 내리고 있습니다. 
+            공감과 함께 행동 아이디어를 제안하십시오.
+            출력은 50자 이내의 짧고 임팩트 있는 문구 하나여야 합니다.
+        """.trimIndent()
+
+        val userQuery = "지금 출발해야 하는 상황에 맞는 짧고 임팩트 있는 알림 문구를 생성해 줘."
+
+        val prompt = content {
+            text(systemInstruction)
+            text(userQuery)
+        }
+
+        val response = model.generateContent(prompt)
+        return response.text?.trim() ?: "출발 시간입니다!"
+    }
 }
 
-data class GeminiRequest(
-    val contents: List<Content>,
-    val systemInstruction: SystemInstruction? = null
-)
-
-data class Content(
-    val parts: List<Part>
-)
-
-data class Part(
-    val text: String
-)
-
-data class SystemInstruction(
-    val parts: List<Part>
-)
-
-data class GeminiResponse(
-    val candidates: List<Candidate>
-)
-
-data class Candidate(
-    val content: Content
-)

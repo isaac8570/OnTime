@@ -33,6 +33,14 @@ class NotificationManager(private val context: Context) {
     }
     
     fun showNotification(title: String, message: String) {
-        // TODO: Build and show notification
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        
+        notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
 }

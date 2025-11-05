@@ -9,15 +9,21 @@ import com.OnTime.ontime.R
 class AuthActivity : AppCompatActivity() {
     
     private lateinit var googleSignInButton: Button
+    private lateinit var browseWithoutLoginButton: Button
     
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_auth)
         
         googleSignInButton = findViewById(R.id.google_sign_in_button)
+        browseWithoutLoginButton = findViewById(R.id.browse_without_login_button)
         
         googleSignInButton.setOnClickListener {
             signInWithGoogle()
+        }
+        
+        browseWithoutLoginButton.setOnClickListener {
+            navigateToMain()
         }
     }
     

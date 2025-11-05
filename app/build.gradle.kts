@@ -1,3 +1,6 @@
+import java.util.Properties
+import java.io.FileInputStream
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -14,6 +17,18 @@ android {
         targetSdk = 34
         versionCode = 1
         versionName = "1.0"
+        
+        val properties = Properties()
+        val localPropertiesFile = rootProject.file("local.properties")
+        if (localPropertiesFile.exists()) {
+            properties.load(FileInputStream(localPropertiesFile))
+        }
+        
+        buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
+    }
+
+    buildFeatures {
+        buildConfig = true
     }
 
     buildTypes {
@@ -27,11 +42,14 @@ android {
         sourceCompatibility = JavaVersion.VERSION_1_8
         targetCompatibility = JavaVersion.VERSION_1_8
     }
+    
     packaging {
         resources {
-            excludes += "META-INF/DEPENDENCIES" // 충돌을 일으킨 파일을 무시하도록 지시
-            excludes += "META-INF/LICENSE"      // (선택 사항) 흔한 충돌 파일도 함께 무시
-            excludes += "META-INF/NOTICE"       // (선택 사항)
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
         }
     }
 
@@ -72,4 +90,7 @@ dependencies {
     
     // Material Design
     implementation("com.google.android.material:material:1.11.0")
+    
+    // Google GenAI SDK
+    implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
 }
