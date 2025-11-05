@@ -1,9 +1,13 @@
 package com.OnTime.ontime.ui
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -17,15 +21,18 @@ import androidx.compose.material.icons.outlined.LocationOn
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import com.OnTime.ontime.data.models.CalendarEvent
+import com.OnTime.ontime.ui.theme.OnTimeTheme
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -47,6 +54,32 @@ class MainActivity : ComponentActivity() {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(onSettingsClick: () -> Unit) {
+    val context = LocalContext.current
+    val permissions = arrayOf(
+        Manifest.permission.ACCESS_FINE_LOCATION,
+        Manifest.permission.ACCESS_COARSE_LOCATION
+    )
+
+    val launcher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissionsMap ->
+        val areGranted = permissionsMap.values.all { it }
+        if (areGranted) {
+            // Permissions granted, proceed with location-based features
+        } else {
+            // Handle the case where permissions are denied
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val arePermissionsGranted = permissions.all {
+            ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
+        }
+        if (!arePermissionsGranted) {
+            launcher.launch(permissions)
+        }
+    }
+
     val now = System.currentTimeMillis()
     val twoHours = 2 * 60 * 60 * 1000L
     val fourHours = 4 * 60 * 60 * 1000L
@@ -308,16 +341,4 @@ fun EmptyState(modifier: Modifier = Modifier) {
             )
         }
     }
-}
-
-@Composable
-fun OnTimeTheme(content: @Composable () -> Unit) {
-    MaterialTheme(
-        colorScheme = lightColorScheme(
-            primary = Color(0xFF6750A4),
-            secondary = Color(0xFF625B71),
-            tertiary = Color(0xFF7D5260)
-        ),
-        content = content
-    )
 }
