@@ -9,5 +9,8 @@ data class CalendarEvent(
     val startTime: Long,
     val endTime: Long,
     val description: String?,
-    var weatherInfo: List<WeatherItem>? = null // Add weather information
+    var weatherInfo: List<WeatherItem>? = null, // Add weather information
+    var travelDuration: String? = null,
+    var originLatLng: Pair<Double, Double>? = null,
+    var destinationLatLng: Pair<Double, Double>? = null
 )

@@ -2,7 +2,9 @@
 
 ## 현재 구현 상태
 
-✅ **완료된 항목:**
+✅ **구현 완료:**
+- **Firebase Authentication** (Google Sign-In)
+- **Gemini API 연동** (알림 메시지 생성 및 테스트)
 - 전체 프로젝트 구조 및 패키지 구성
 - UI 레이어 (Activity, Fragment, ViewModel)
 - Data 레이어 (Models, Repositories)
@@ -13,14 +15,15 @@
 - 리소스 파일 (strings.xml, colors.xml)
 - Gradle 빌드 설정
 
+🟡 **부분 구현:**
+- **Google Calendar API 연동** (최근 10개 일정 읽기)
+- **알림 표시 로직** (즉시 표시는 가능, 스케줄링 미구현)
+
 🔨 **구현 필요 (TODO):**
-- Google Calendar API 연동
-- Google Maps Directions API 연동
-- Gemini API 연동
-- Firebase Authentication 구현
-- WorkManager 백그라운드 작업 로직
-- 알림 스케줄링 및 표시 로직
-- RecyclerView Adapter 구현
+- **Google Maps Directions API 연동** (경로 계산 로직)
+- **WorkManager 백그라운드 작업 로직** (경로 계산, 알림 반복)
+- **알림 스케줄링 로직** (지정된 시간에 알림 예약)
+- **RecyclerView Adapter 구현** (캘린더 일정 목록 표시)
 
 ## 시작하기
 
@@ -139,8 +142,9 @@ https://developers.google.com/workspace/calendar/api/guides/overview?hl=ko
 
 - **앱 이름 (가칭):** 프롬프트 출발 (Prompt Depart) 또는 타임 마스터
 - **핵심 문제:** 사용자가 일정을 잊거나, 예상치 못한 교통 상황으로 인해 약속 시간에 늦는 문제.
-- **핵심 솔루션:** 구글 캘린더 일정에 기반하여, 예상 이동 시간과 실시간 교통 상황을 고려한 '최적 출발 시간'을 계산하고, LLM 기반의 맞춤 알림을 제공하는 비서형 인공지능 앱.
-- **주요 기술:** Google Calendar API, Google Maps Directions API, Gemini API (LLM), Firebase.
+- **핵심 솔루션:** 단순한 정보 제공을 넘어, 감성적이고 상황을 인지하는 AI 비서 모델을 제공하는 것을 목표로 합니다. 사용자의 구글 캘린더 일정과 기상청의 날씨 데이터를 Gemini AI 모델과 결합하여, "도착지에 비 소식이 있으니 우산을 챙기세요" 또는 "첫눈이 오네요. 이 핑계로 좋아하는 사람에게 연락해보는 건 어떠세요?"와 같이 개인화되고 창의적인 조언을 생성합니다.
+- **구현 전략:** 복잡한 머신러닝 모델을 직접 개발하는 대신, Gemini AI의 강력한 추론 능력을 **프롬프트 엔지니어링(Prompt Engineering)**을 통해 활용합니다. 이 접근 방식은 **'규칙 기반 추론 강화 생성 (RAG, Rule-Augmented Generation)'** 원리를 활용하여, 주어진 데이터를 바탕으로 고품질의 맞춤형 메시지를 생성하는 비서 모델의 역할을 수행하게 합니다.
+- **주요 기술:** Google Calendar API, Google Maps Directions API, Gemini API (LLM), 기상청 OpenAPI, Firebase.
 
 ## 2. 핵심 기능 및 기술 스택
 
@@ -149,6 +153,7 @@ https://developers.google.com/workspace/calendar/api/guides/overview?hl=ko
 | **인증 및 계정** | 구글 계정으로 로그인 (Google Sign-In) | Firebase Authentication, Google Play Services |  |
 | **일정 관리** | 캘린더 일정 읽기 및 동기화 | Google Calendar API |  |
 | **경로 계산** | 출발/도착지 경로 및 소요 시간 계산 (대중교통/자가용/도보) | Google Maps Directions API |  |
+| **날씨 정보** | 출발지/도착지 날씨 정보 조회 | 기상청 OpenAPI | |
 | **위치 검색** | 출발지, 도착지 입력 시 자동 완성 기능 | Google Maps Places API (Autocomplete) |  |
 | **스마트 알림** | 최적 출발 시간 계산 및 알림 발송 (사전 알림) | Firebase Cloud Messaging (FCM) |  |
 | **LLM 기반 알림** | 사용자가 설정한 톤(강함/약함)에 따른 알림 문구 생성 | **Gemini API** (LLM) |  |
@@ -193,9 +198,22 @@ https://developers.google.com/workspace/calendar/api/guides/overview?hl=ko
 
 ## 4. LLM (Gemini API) 통합 전략
 
+### Gemini AI 활용 철학: 단순 정보 제공을 넘어서
+
+저희 프로젝트의 핵심 목표는 단순히 "도착지 온도는 30도"라고 알려주는 것을 넘어, 사용자에게 실제 도움이 되는 감성적이고 상황 인식적인 조언을 제공하는 AI 비서를 만드는 것입니다.
+
+예를 들어, 다음과 같은 알림을 제공하는 것을 목표로 합니다.
+- "도착지에 비 소식이 있어요. 우산을 꼭 챙기세요!"
+- "오늘 날씨는 12도네요. 외출할 때 코트나 후드티를 입는 걸 추천해요."
+- "영하의 추운 날씨예요. 출발 전에 목도리를 챙기는 건 어떨까요?"
+- "첫눈이 와요. 이 핑계로 좋아하는 사람에게 연락해보는 건 어떠세요?"
+
+이러한 목표를 달성하기 위해, 우리는 복잡한 머신러닝 모델을 직접 개발하는 대신 Gemini AI의 강력한 추론 능력을 활용합니다. **프롬프트 엔지니어링(Prompt Engineering)**을 통해 날씨, 일정, 시간 등 주어진 데이터를 바탕으로 위와 같은 창의적이고 유용한 메시지를 생성하도록 유도합니다. 이 접근 방식은 **'규칙 기반 추론 강화 생성 (RAG, Rule-Augmented Generation)'**의 원리를 활용하는 것으로, 별도의 모델 학습 없이도 고품질의 개인화된 경험을 제공할 수 있게 합니다.
+
+### 프롬프트 및 톤 설계
 Gemini API는 사용자의 설정에 따라 맞춤화된 알림 메시지를 생성하는 데 사용됩니다.
 
-1. **프롬프트 설계:** 알림 상황(예: "출발 시간 30분 전", "지각 위험"), 이동 수단, 목적지 정보를 프롬프트에 포함합니다.
+1. **프롬프트 설계:** 알림 상황(예: "출발 시간 30분 전", "지각 위험"), 이동 수단, 목적지, 날씨 정보를 프롬프트에 포함합니다.
 2. **톤 조절:** 시스템 인스트럭션 또는 사용자 입력(변수)을 통해 원하는 톤을 명확히 정의합니다.
 
 | 설정 톤 | LLM 시스템 인스트럭션 (예시) | 예시 출력 문구 |
@@ -207,7 +225,7 @@ Gemini API는 사용자의 설정에 따라 맞춤화된 알림 메시지를 생
 
 ```javascript
 // 알림 메시지 생성을 위한 LLM 호출
-const prompt = `사용자의 다음 일정: ${일정_제목}. 출발해야 할 시간입니다. 이동 수단은 ${이동_수단}이고 목적지는 ${도착지}입니다. 이 상황에 맞는 알림 메시지를 생성해 주세요.`;
+const prompt = `사용자의 다음 일정: ${일정_제목}. 출발해야 할 시간입니다. 이동 수단은 ${이동_수단}이고 목적지는 ${도착지}이며, 날씨는 ${날씨_정보}입니다. 이 상황에 맞는 알림 메시지를 생성해 주세요.`;
 
 const systemPrompt = "당신은 사용자가 설정한 '강한 버전'의 비서 역할을 합니다. 단호하고 경고하는 톤으로 짧은 메시지를 생성하십시오.";
 
