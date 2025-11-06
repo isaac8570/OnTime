@@ -22,7 +22,7 @@ class CalendarViewModel(application: Application, private val calendarRepository
     fun loadEvents() {
         _isLoading.value = true
         viewModelScope.launch {
-            val fetchedEvents = calendarRepository.getEvents().toMutableList()
+            val fetchedEvents = calendarRepository.getEvents(getApplication()).toMutableList()
             fetchedEvents.forEachIndexed { index, event ->
                 event.location?.let { location ->
                     val latLng = LocationConverter.addressToLatLng(getApplication(), location)
