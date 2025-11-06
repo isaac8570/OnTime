@@ -1,6 +1,7 @@
 package com.OnTime.ontime.ui
 
 import android.Manifest
+import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
@@ -14,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.DirectionsCar
@@ -40,6 +42,8 @@ import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -100,7 +104,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { 
+                title = {
                     Column {
                         Text("OnTime", fontWeight = FontWeight.Bold, fontSize = 24.sp)
                         Text("오늘의 일정", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -109,6 +113,18 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                 actions = {
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
+                    }
+                    IconButton(onClick = {
+                        val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
+                        val googleSignInClient = GoogleSignIn.getClient(context, gso)
+                        googleSignInClient.signOut().addOnCompleteListener {
+                            val intent = Intent(context, AuthActivity::class.java)
+                            intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+                            context.startActivity(intent)
+                            (context as? Activity)?.finish()
+                        }
+                    }) {
+                        Icon(Icons.Default.ExitToApp, "로그아웃")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -143,7 +159,7 @@ fun ModernEventCard(event: CalendarEvent) {
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
     val timeUntil = (event.startTime - now) / (60 * 1000) // 분 단위
-    
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
@@ -184,7 +200,7 @@ fun ModernEventCard(event: CalendarEvent) {
                         )
                     }
                 }
-                
+
                 // 시간까지 남은 시간 배지
                 Surface(
                     shape = RoundedCornerShape(12.dp),
@@ -212,9 +228,9 @@ fun ModernEventCard(event: CalendarEvent) {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(16.dp))
-            
+
             // 날짜 및 시간
             Row(
                 verticalAlignment = Alignment.CenterVertically,
@@ -233,7 +249,7 @@ fun ModernEventCard(event: CalendarEvent) {
                     fontWeight = FontWeight.Medium
                 )
             }
-            
+
             // 위치
             event.location?.let {
                 Row(
@@ -254,9 +270,9 @@ fun ModernEventCard(event: CalendarEvent) {
                     )
                 }
             }
-            
+
             Spacer(modifier = Modifier.height(12.dp))
-            
+
             // 하단: 예상 정보
             Row(
                 modifier = Modifier
