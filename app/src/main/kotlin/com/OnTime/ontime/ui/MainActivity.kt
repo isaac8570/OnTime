@@ -100,6 +100,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
+    val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -133,19 +134,22 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
             )
         }
     ) { padding ->
-        if (events.isEmpty()) {
-            EmptyState(Modifier.padding(padding))
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                items(events) { event ->
-                    ModernEventCard(event)
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            if (isLoading) {
+                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+            } else if (events.isEmpty()) {
+                EmptyState(Modifier.align(Alignment.Center))
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(events) { event ->
+                        ModernEventCard(event)
+                    }
                 }
             }
         }
