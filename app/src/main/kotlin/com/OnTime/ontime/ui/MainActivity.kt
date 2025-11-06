@@ -1,10 +1,12 @@
 package com.OnTime.ontime.ui
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -42,19 +44,40 @@ import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
+import com.OnTime.ontime.util.LocationConverter
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationCallback
+import com.google.android.gms.location.LocationRequest
+import com.google.android.gms.location.LocationResult
+import com.google.android.gms.location.LocationServices
 import java.text.SimpleDateFormat
 import java.util.*
 
 class MainActivity : ComponentActivity() {
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private lateinit var locationCallback: LocationCallback
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
+        locationCallback = object : LocationCallback() {
+            override fun onLocationResult(locationResult: LocationResult) {
+                locationResult.lastLocation?.let { location ->
+                    val calendarViewModel: CalendarViewModel = ViewModelProvider(this@MainActivity, ViewModelProvider.AndroidViewModelFactory.getInstance(application)).get(CalendarViewModel::class.java)
+                    calendarViewModel.updateCurrentLocation(location.latitude, location.longitude)
+                }
+            }
+        }
+
         setContent {
             OnTimeTheme {
                 val factory = object : ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
+                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository(), LocationConverter) as T
                     }
                 }
                 val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
@@ -66,6 +89,33 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun startLocationUpdates() {
+        val locationRequest = LocationRequest.create().apply {
+            interval = 10000
+            fastestInterval = 5000
+            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
+        }
+        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
+    }
+
+    private fun stopLocationUpdates() {
+        fusedLocationClient.removeLocationUpdates(locationCallback)
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Check for permissions again before starting updates
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
+            startLocationUpdates()
+        }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopLocationUpdates()
     }
 }
 
@@ -84,6 +134,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
         val areGranted = permissionsMap.values.all { it }
         if (areGranted) {
             // Permissions granted, proceed with location-based features
+            // The location updates will start in onResume
         } else {
             // Handle the case where permissions are denied
         }
@@ -101,6 +152,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
+    val currentLocation by calendarViewModel.currentLocationLatLng.observeAsState()
 
     Scaffold(
         topBar = {
@@ -148,7 +200,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(events) { event ->
-                        ModernEventCard(event)
+                        ModernEventCard(event, currentLocation)
                     }
                 }
             }
@@ -158,7 +210,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
 
 
 @Composable
-fun ModernEventCard(event: CalendarEvent) {
+fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?) {
     val dateFormat = SimpleDateFormat("MM월 dd일", Locale.KOREA)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
@@ -185,7 +237,8 @@ fun ModernEventCard(event: CalendarEvent) {
             // 상단: 제목과 시간까지 남은 시간
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
+                horizontalArrangement = Arrangement.SpaceBetween
+                ,
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -254,7 +307,28 @@ fun ModernEventCard(event: CalendarEvent) {
                 )
             }
 
-            // 위치
+            // 출발지 (현재 위치)
+            currentLocation?.let {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(bottom = 4.dp)
+                ) {
+                    Icon(
+                        Icons.Outlined.LocationOn,
+                        contentDescription = null,
+                        modifier = Modifier.size(20.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "출발: 현재 위치 (${String.format("%.4f, %.4f", it.first, it.second)})",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
+            }
+
+            // 도착지
             event.location?.let {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -268,7 +342,7 @@ fun ModernEventCard(event: CalendarEvent) {
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = it,
+                        text = "도착: ${it} (${String.format("%.4f, %.4f", event.destinationLatLng?.first ?: 0.0, event.destinationLatLng?.second ?: 0.0)})",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -289,7 +363,7 @@ fun ModernEventCard(event: CalendarEvent) {
                 InfoChip(
                     icon = Icons.Outlined.DirectionsCar,
                     label = "이동시간",
-                    value = "계산 중..."
+                    value = event.travelDuration ?: "계산 중..."
                 )
                 InfoChip(
                     icon = Icons.Outlined.Notifications,
@@ -324,6 +398,7 @@ fun ModernEventCard(event: CalendarEvent) {
         }
     }
 }
+
 
 @Composable
 fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {

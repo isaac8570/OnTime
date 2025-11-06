@@ -12,8 +12,9 @@ class ViewModelFactory(private val application: Application) : ViewModelProvider
         if (modelClass.isAssignableFrom(CalendarViewModel::class.java)) {
             val calendarRepository = CalendarRepository()
             val weatherRepository = WeatherRepository()
+            val locationConverter = com.OnTime.ontime.util.LocationConverter
             @Suppress("UNCHECKED_CAST")
-            return CalendarViewModel(application, calendarRepository, weatherRepository) as T
+            return CalendarViewModel(application, calendarRepository, weatherRepository, locationConverter) as T
         }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
