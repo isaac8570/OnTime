@@ -7,6 +7,7 @@ object RetrofitClient {
     
     private const val GOOGLE_MAPS_BASE_URL = "https://maps.googleapis.com/"
     private const val GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/"
+    private const val KMA_WEATHER_BASE_URL = "https://apis.data.go.kr/"
     
     private fun getRetrofit(baseUrl: String): Retrofit {
         return Retrofit.Builder()
@@ -25,5 +26,9 @@ object RetrofitClient {
     
     val geminiService: GeminiApiService by lazy {
         getRetrofit(GEMINI_BASE_URL).create(GeminiApiService::class.java)
+    }
+
+    val kmaWeatherService: KmaWeatherApiService by lazy {
+        getRetrofit(KMA_WEATHER_BASE_URL).create(KmaWeatherApiService::class.java)
     }
 }

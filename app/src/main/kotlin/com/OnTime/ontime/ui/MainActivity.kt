@@ -22,6 +22,8 @@ import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -31,8 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.ViewModelProvider
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.OnTime.ontime.data.models.CalendarEvent
+import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
+import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -41,10 +48,17 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         setContent {
             OnTimeTheme {
+                val factory = object : ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
+                    }
+                }
+                val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
                 MainScreen(
                     onSettingsClick = {
                         startActivity(Intent(this, SettingsActivity::class.java))
-                    }
+                    },
+                    calendarViewModel = calendarViewModel
                 )
             }
         }
@@ -53,7 +67,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(onSettingsClick: () -> Unit) {
+fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel) {
     val context = LocalContext.current
     val permissions = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -78,38 +92,10 @@ fun MainScreen(onSettingsClick: () -> Unit) {
         if (!arePermissionsGranted) {
             launcher.launch(permissions)
         }
+        calendarViewModel.loadEvents()
     }
 
-    val now = System.currentTimeMillis()
-    val twoHours = 2 * 60 * 60 * 1000L
-    val fourHours = 4 * 60 * 60 * 1000L
-    
-    val dummyEvents = listOf(
-        CalendarEvent(
-            id = "1",
-            title = "팀 회의",
-            startTime = now + twoHours,
-            endTime = now + twoHours + (60 * 60 * 1000L),
-            location = "강남역 2번 출구 스타벅스",
-            description = "Q4 프로젝트 진행 상황 논의"
-        ),
-        CalendarEvent(
-            id = "2",
-            title = "점심 약속",
-            startTime = now + fourHours,
-            endTime = now + fourHours + (60 * 60 * 1000L),
-            location = "홍대입구역 3번 출구 카페",
-            description = "친구와 점심 식사"
-        ),
-        CalendarEvent(
-            id = "3",
-            title = "병원 예약",
-            startTime = now + (6 * 60 * 60 * 1000L),
-            endTime = now + (7 * 60 * 60 * 1000L),
-            location = "서울대병원 본관 3층",
-            description = "정기 검진"
-        )
-    )
+    val events by calendarViewModel.events.observeAsState(initial = emptyList())
 
     Scaffold(
         topBar = {
@@ -131,7 +117,7 @@ fun MainScreen(onSettingsClick: () -> Unit) {
             )
         }
     ) { padding ->
-        if (dummyEvents.isEmpty()) {
+        if (events.isEmpty()) {
             EmptyState(Modifier.padding(padding))
         } else {
             LazyColumn(
@@ -142,13 +128,14 @@ fun MainScreen(onSettingsClick: () -> Unit) {
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(dummyEvents) { event ->
+                items(events) { event ->
                     ModernEventCard(event)
                 }
             }
         }
     }
 }
+
 
 @Composable
 fun ModernEventCard(event: CalendarEvent) {
@@ -270,7 +257,7 @@ fun ModernEventCard(event: CalendarEvent) {
             
             Spacer(modifier = Modifier.height(12.dp))
             
-            // 하단: 예상 정보 (더미 데이터)
+            // 하단: 예상 정보
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -289,6 +276,30 @@ fun ModernEventCard(event: CalendarEvent) {
                     label = "출발시간",
                     value = "계산 중..."
                 )
+                event.weatherInfo?.let { weatherList ->
+                    val skyCondition = weatherList.find { it.category == "SKY" }?.fcstValue
+                    val temperature = weatherList.find { it.category == "TMP" }?.fcstValue
+
+                    skyCondition?.let { sky ->
+                        InfoChip(
+                            icon = Icons.Outlined.Notifications, // TODO: Change to weather icon
+                            label = "하늘상태",
+                            value = when (sky.toInt()) {
+                                1 -> "맑음"
+                                3 -> "구름많음"
+                                4 -> "흐림"
+                                else -> "알 수 없음"
+                            }
+                        )
+                    }
+                    temperature?.let { temp ->
+                        InfoChip(
+                            icon = Icons.Outlined.Notifications, // TODO: Change to temperature icon
+                            label = "기온",
+                            value = "${temp}°C"
+                        )
+                    }
+                }
             }
         }
     }
