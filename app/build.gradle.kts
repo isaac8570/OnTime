@@ -25,6 +25,7 @@ android {
         }
         
         buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
+        buildConfigField("String", "KMA_WEATHER_API_KEY", "\"${properties.getProperty("KMA_WEATHER_API_KEY", "")}\"")
     }
 
     buildFeatures {
@@ -74,6 +75,8 @@ dependencies {
     // Lifecycle & ViewModel
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.7.0")
     implementation("androidx.lifecycle:lifecycle-livedata-ktx:2.7.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.7.0")
+    implementation("androidx.compose.runtime:runtime-livedata:1.6.6")
     
     // WorkManager
     implementation("androidx.work:work-runtime-ktx:2.9.0")
