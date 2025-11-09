@@ -44,6 +44,7 @@ import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
+import com.OnTime.ontime.util.Constants
 import com.OnTime.ontime.util.LocationConverter
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -63,12 +64,14 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+        // 경로 계산 백그라운드 작업 시작
+        com.OnTime.ontime.service.RouteCalculationWorker.schedulePeriodicWork(this)
 
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
                 locationResult.lastLocation?.let { location ->
                     val calendarViewModel: CalendarViewModel = ViewModelProvider(this@MainActivity, ViewModelProvider.AndroidViewModelFactory.getInstance(application)).get(CalendarViewModel::class.java)
-                    calendarViewModel.updateCurrentLocation(location.latitude, location.longitude)
+                    // 위치 업데이트 처리
                 }
             }
         }
@@ -77,7 +80,7 @@ class MainActivity : ComponentActivity() {
             OnTimeTheme {
                 val factory = object : ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository(), LocationConverter) as T
+                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
                     }
                 }
                 val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
@@ -147,12 +150,12 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
         if (!arePermissionsGranted) {
             launcher.launch(permissions)
         }
-        calendarViewModel.loadEvents()
+        calendarViewModel.loadEventsWithTravelTime()
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
-    val currentLocation by calendarViewModel.currentLocationLatLng.observeAsState()
+    val travelMode by calendarViewModel.travelMode.observeAsState(initial = Constants.MODE_TRANSIT)
 
     Scaffold(
         topBar = {
@@ -164,6 +167,12 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        // 거리 계산 테스트 - 홍대 예시
+                        calendarViewModel.testTravelCalculation()
+                    }) {
+                        Icon(Icons.Outlined.Notifications, "거리 테스트")
+                    }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
                     }
@@ -200,7 +209,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(events) { event ->
-                        ModernEventCard(event, currentLocation)
+                        ModernEventCard(event, null)
                     }
                 }
             }
@@ -447,4 +456,55 @@ fun EmptyState(modifier: Modifier = Modifier) {
             )
         }
     }
+}
+
+@Composable
+fun TravelModeSelector(
+    selectedMode: String,
+    onModeSelected: (String) -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        TravelModeChip(
+            mode = Constants.MODE_TRANSIT,
+            label = "대중교통",
+            isSelected = selectedMode == Constants.MODE_TRANSIT,
+            onClick = { onModeSelected(Constants.MODE_TRANSIT) },
+            modifier = Modifier.weight(1f)
+        )
+        TravelModeChip(
+            mode = Constants.MODE_DRIVING,
+            label = "자가용",
+            isSelected = selectedMode == Constants.MODE_DRIVING,
+            onClick = { onModeSelected(Constants.MODE_DRIVING) },
+            modifier = Modifier.weight(1f)
+        )
+        TravelModeChip(
+            mode = Constants.MODE_WALKING,
+            label = "도보",
+            isSelected = selectedMode == Constants.MODE_WALKING,
+            onClick = { onModeSelected(Constants.MODE_WALKING) },
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+fun TravelModeChip(
+    mode: String,
+    label: String,
+    isSelected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    FilterChip(
+        onClick = onClick,
+        label = { Text(label) },
+        selected = isSelected,
+        modifier = modifier
+    )
 }

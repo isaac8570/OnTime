@@ -38,6 +38,15 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
+        <!-- 알림 수신자 -->
+        <receiver
+            android:name=".service.NotificationReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".service.FollowUpNotificationReceiver"
+            android:exported="false" />
+
     </application>
 
 </manifest>
