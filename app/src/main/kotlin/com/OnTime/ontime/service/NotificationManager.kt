@@ -43,4 +43,16 @@ class NotificationManager(private val context: Context) {
         
         notificationManager.notify(System.currentTimeMillis().toInt(), notification)
     }
+    
+    fun showDepartureNotification(title: String, message: String, eventId: String) {
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setSmallIcon(android.R.drawable.ic_dialog_info)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .build()
+        
+        notificationManager.notify(eventId.hashCode(), notification)
+    }
 }

@@ -1,129 +1,158 @@
 package com.OnTime.ontime.ui.viewmodel
 
+import android.Manifest
 import android.app.Application
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import androidx.work.OneTimeWorkRequestBuilder
-import androidx.work.WorkManager
-import androidx.work.workDataOf
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.TravelTimeRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
-import com.OnTime.ontime.service.RouteCalculationWorker
-import com.OnTime.ontime.util.LocationConverter
+import com.OnTime.ontime.util.Constants
 import kotlinx.coroutines.launch
 
-class CalendarViewModel(application: Application, private val calendarRepository: CalendarRepository, private val weatherRepository: WeatherRepository, private val locationConverter: LocationConverter) : AndroidViewModel(application) {
+class CalendarViewModel(
+    application: Application,
+    private val calendarRepository: CalendarRepository,
+    private val weatherRepository: WeatherRepository
+) : AndroidViewModel(application) {
     
     private val _events = MutableLiveData<List<CalendarEvent>>()
     val events: LiveData<List<CalendarEvent>> = _events
     
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-
-    private val _currentLocationLatLng = MutableLiveData<Pair<Double, Double>?>()
-    val currentLocationLatLng: LiveData<Pair<Double, Double>?> = _currentLocationLatLng
-
-    private val workManager = WorkManager.getInstance(application)
     
-    fun updateCurrentLocation(latitude: Double, longitude: Double) {
-        _currentLocationLatLng.value = Pair(latitude, longitude)
-        // Re-calculate travel times and geocode destinations when current location changes
-        _events.value?.forEach { event ->
-            geocodeAndCalculateTravelTime(event)
-        }
-    }
-
-    private fun calculateTravelTime(event: CalendarEvent, origin: Pair<Double, Double>, destination: Pair<Double, Double>) {
-        val workRequest = OneTimeWorkRequestBuilder<RouteCalculationWorker>()
-            .setInputData(workDataOf(
-                "originLat" to origin.first,
-                "originLng" to origin.second,
-                "destinationLat" to destination.first,
-                "destinationLng" to destination.second,
-                "eventTitle" to event.title
-            ))
-            .build()
-
-        workManager.enqueue(workRequest)
-
-        // Observe the result of the work
-        workManager.getWorkInfoByIdLiveData(workRequest.id)
-            .observeForever { workInfo ->
-                if (workInfo != null && workInfo.state.isFinished) {
-                    if (workInfo.state == androidx.work.WorkInfo.State.SUCCEEDED) {
-                        val travelDuration = workInfo.outputData.getString(RouteCalculationWorker.KEY_TRAVEL_DURATION)
-                        updateEventWithTravelTime(event.id, travelDuration)
-                    }
-                }
-            }
-    }
-
-    private fun updateEventInList(updatedEvent: CalendarEvent) {
-        val currentEvents = _events.value.orEmpty().toMutableList()
-        val index = currentEvents.indexOfFirst { it.id == updatedEvent.id }
-        if (index != -1) {
-            currentEvents[index] = updatedEvent
-            _events.postValue(currentEvents)
-        }
-    }
-
-    private fun updateEventWithTravelTime(eventId: String, travelDuration: String?) {
-        val currentEvents = _events.value ?: return
-        val updatedEvents = currentEvents.map {
-            if (it.id == eventId) {
-                it.copy(travelDuration = travelDuration)
-            } else {
-                it
-            }
-        }
-        _events.postValue(updatedEvents)
-    }
+    private val _travelMode = MutableLiveData<String>(Constants.MODE_TRANSIT)
+    val travelMode: LiveData<String> = _travelMode
     
-    fun loadEvents() {
+    private val travelTimeRepository = TravelTimeRepository(application)
+    
+    fun loadEventsWithTravelTime() {
         _isLoading.value = true
         viewModelScope.launch {
-            val fetchedEvents = calendarRepository.getEvents(getApplication())
-            val eventsWithGeocodedDestinations = fetchedEvents.map { event ->
-                event.location?.let { location ->
-                    locationConverter.addressToLatLng(getApplication(), location)?.let { latLng ->
-                        event.copy(destinationLatLng = latLng)
+            try {
+                val events = calendarRepository.getEvents(getApplication())
+                _events.postValue(events)
+                
+                // Calculate travel times for all events
+                calculateTravelTimesForEvents(events)
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                _isLoading.postValue(false)
+            }
+        }
+    }
+    
+    private suspend fun calculateTravelTimesForEvents(events: List<CalendarEvent>) {
+        val currentMode = _travelMode.value ?: Constants.MODE_TRANSIT
+        
+        events.forEach { event ->
+            try {
+                val travelInfo = travelTimeRepository.calculateTravelTimeForEvent(event, currentMode)
+                if (travelInfo != null) {
+                    val updatedEvents = _events.value?.map { 
+                        if (it.id == event.id) {
+                            it.copy(travelDuration = travelInfo.durationText)
+                        } else it
                     }
-                } ?: event
-            }
-            _events.postValue(eventsWithGeocodedDestinations)
-            _isLoading.postValue(false)
-
-            // After loading events and geocoding destinations, trigger travel time calculation for each
-            eventsWithGeocodedDestinations.forEach { event ->
-                geocodeAndCalculateTravelTime(event)
-            }
-        }
-    }
-
-    private fun geocodeAndCalculateTravelTime(event: CalendarEvent) {
-        viewModelScope.launch {
-            val origin = _currentLocationLatLng.value
-            val destination = event.destinationLatLng
-
-            if (origin != null && destination != null) {
-                calculateTravelTime(event, origin, destination)
-            } else if (event.location != null) {
-                // Try to geocode destination if not already done
-                val geocodedDestination = locationConverter.addressToLatLng(getApplication(), event.location)
-                if (geocodedDestination != null && origin != null) {
-                    val updatedEvent = event.copy(destinationLatLng = geocodedDestination)
-                    updateEventInList(updatedEvent)
-                    calculateTravelTime(updatedEvent, origin, geocodedDestination)
+                    _events.postValue(updatedEvents ?: emptyList())
                 }
+            } catch (e: Exception) {
+                // 개별 이벤트 오류 처리
             }
         }
     }
-
+    
+    fun setTravelMode(mode: String) {
+        _travelMode.value = mode
+        _events.value?.let { events ->
+            viewModelScope.launch {
+                calculateTravelTimesForEvents(events)
+            }
+        }
+    }
+    
     fun refreshEvents() {
-        loadEvents()
+        loadEventsWithTravelTime()
+    }
+    
+    fun testTravelCalculation() {
+        viewModelScope.launch {
+            try {
+                val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                
+                // 1단계: 위치 권한 확인
+                val hasPermission = ContextCompat.checkSelfPermission(
+                    getApplication(), 
+                    Manifest.permission.ACCESS_FINE_LOCATION
+                ) == PackageManager.PERMISSION_GRANTED
+                
+                if (!hasPermission) {
+                    notificationManager.showDepartureNotification(
+                        title = "테스트 실패",
+                        message = "위치 권한이 없습니다",
+                        eventId = "error_permission"
+                    )
+                    return@launch
+                }
+                
+                // 2단계: 현재 위치 확인
+                val locationService = com.OnTime.ontime.service.LocationService(getApplication())
+                val currentLocation = locationService.getCurrentLocation()
+                
+                if (currentLocation == null) {
+                    notificationManager.showDepartureNotification(
+                        title = "테스트 실패", 
+                        message = "현재 위치를 가져올 수 없습니다",
+                        eventId = "error_location"
+                    )
+                    return@launch
+                }
+                
+                // 3단계: 영문 주소로 테스트
+                val destination = "Hongik University Station, Seoul"
+                
+                notificationManager.showDepartureNotification(
+                    title = "API 키 확인",
+                    message = "API Key: ${Constants.GOOGLE_MAPS_API_KEY.take(10)}...",
+                    eventId = "api_check"
+                )
+                
+                // 4단계: Google Maps API 호출
+                val travelInfo = locationService.calculateTravelTime(
+                    currentLocation = currentLocation,
+                    destinationAddress = destination,
+                    mode = Constants.MODE_TRANSIT
+                )
+                
+                if (travelInfo != null) {
+                    notificationManager.showDepartureNotification(
+                        title = "테스트 성공!",
+                        message = "홍대까지: ${travelInfo.durationText} (${travelInfo.distanceText})",
+                        eventId = "success"
+                    )
+                } else {
+                    notificationManager.showDepartureNotification(
+                        title = "테스트 실패",
+                        message = "Google Maps API 호출 실패 - API 키 확인 필요",
+                        eventId = "error_api"
+                    )
+                }
+                
+            } catch (e: Exception) {
+                val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                notificationManager.showDepartureNotification(
+                    title = "테스트 오류",
+                    message = "오류: ${e.message}",
+                    eventId = "error_exception"
+                )
+            }
+        }
     }
 }
-

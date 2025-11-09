@@ -5,7 +5,7 @@ import com.OnTime.ontime.BuildConfig
 object Constants {
     
     // API Keys
-    const val GOOGLE_MAPS_API_KEY = "YOUR_GOOGLE_MAPS_API_KEY"
+    const val GOOGLE_MAPS_API_KEY = BuildConfig.MAPS_API_KEY
 
     const val GEMINI_API_KEY = BuildConfig.GEMINI_API_KEY
     

@@ -26,6 +26,7 @@ android {
         
         buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
         buildConfigField("String", "KMA_WEATHER_API_KEY", "\"${properties.getProperty("KMA_WEATHER_API_KEY", "")}\"")
+        buildConfigField("String", "MAPS_API_KEY", "\"${properties.getProperty("MAPS_API_KEY", "")}\"")
     }
 
     buildFeatures {
