@@ -166,6 +166,7 @@ class CalendarViewModel(
                 val ragService = com.OnTime.ontime.service.FirebaseRAGService()
                 val locationExtractor = com.OnTime.ontime.service.LocationExtractorService()
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication())
                 
                 // 실제 캘린더 일정 가져오기
                 val realEvents = calendarRepository.getEvents(getApplication())
@@ -198,24 +199,54 @@ class CalendarViewModel(
                         weatherCondition = "맑음"
                     )
                     
+                    val fullMessage = "일정: ${firstEvent.title}\n위치: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage"
+                    
+                    // 히스토리에 저장
+                    historyService.saveNotification(
+                        title = "🧠 실제 일정 RAG 테스트",
+                        message = fullMessage,
+                        eventTitle = firstEvent.title,
+                        extractedLocation = extractedLocation,
+                        travelTime = travelTime,
+                        ragMessage = ragMessage,
+                        type = "RAG"
+                    )
+                    
                     notificationManager.showDepartureNotification(
                         title = "🧠 실제 일정 RAG 테스트",
-                        message = "일정: ${firstEvent.title}\n위치: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage",
+                        message = fullMessage,
                         eventId = "rag_test_real"
                     )
                 } else {
+                    val message = "캘린더에 일정이 없습니다. 일정을 추가해보세요!"
+                    
+                    historyService.saveNotification(
+                        title = "RAG 테스트",
+                        message = message,
+                        type = "ERROR"
+                    )
+                    
                     notificationManager.showDepartureNotification(
                         title = "RAG 테스트",
-                        message = "캘린더에 일정이 없습니다. 일정을 추가해보세요!",
+                        message = message,
                         eventId = "no_events"
                     )
                 }
                 
             } catch (e: Exception) {
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication())
+                val errorMessage = "오류: ${e.message}"
+                
+                historyService.saveNotification(
+                    title = "RAG 오류",
+                    message = errorMessage,
+                    type = "ERROR"
+                )
+                
                 notificationManager.showDepartureNotification(
                     title = "RAG 오류",
-                    message = "오류: ${e.message}",
+                    message = errorMessage,
                     eventId = "rag_error"
                 )
             }

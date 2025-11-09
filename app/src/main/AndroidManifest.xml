@@ -38,6 +38,10 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
+        <activity
+            android:name=".ui.NotificationHistoryActivity"
+            android:exported="false" />
+
         <!-- 알림 수신자 -->
         <receiver
             android:name=".service.NotificationReceiver"
