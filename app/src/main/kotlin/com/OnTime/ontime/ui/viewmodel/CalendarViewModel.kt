@@ -164,28 +164,52 @@ class CalendarViewModel(
         viewModelScope.launch {
             try {
                 val ragService = com.OnTime.ontime.service.FirebaseRAGService()
+                val locationExtractor = com.OnTime.ontime.service.LocationExtractorService()
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
                 
-                val testEvent = CalendarEvent(
-                    id = "rag_test",
-                    title = "홍대 만나기", 
-                    location = "홍대입구역",
-                    description = null,
-                    startTime = System.currentTimeMillis(),
-                    endTime = System.currentTimeMillis()
-                )
+                // 실제 캘린더 일정 가져오기
+                val realEvents = calendarRepository.getEvents(getApplication())
                 
-                val ragMessage = ragService.generateRAGNotification(
-                    event = testEvent,
-                    travelTime = "25분",
-                    weatherCondition = "맑음"
-                )
-                
-                notificationManager.showDepartureNotification(
-                    title = "🧠 RAG 테스트 성공!",
-                    message = ragMessage,
-                    eventId = "rag_test"
-                )
+                if (realEvents.isNotEmpty()) {
+                    // 첫 번째 실제 일정으로 테스트
+                    val firstEvent = realEvents.first()
+                    
+                    // AI로 위치 추출
+                    val extractedLocation = locationExtractor.extractLocationFromText(
+                        eventTitle = firstEvent.title,
+                        eventDescription = firstEvent.description
+                    )
+                    
+                    // 위치가 추출되면 거리 계산
+                    val travelTime = if (extractedLocation != null) {
+                        val travelTimeRepo = TravelTimeRepository(getApplication())
+                        val travelInfo = travelTimeRepo.calculateTravelTimeForEvent(
+                            event = firstEvent.copy(location = extractedLocation),
+                            transportMode = Constants.MODE_TRANSIT
+                        )
+                        travelInfo?.durationText ?: "계산 실패"
+                    } else {
+                        "위치 추출 실패"
+                    }
+                    
+                    val ragMessage = ragService.generateRAGNotification(
+                        event = firstEvent.copy(location = extractedLocation),
+                        travelTime = travelTime,
+                        weatherCondition = "맑음"
+                    )
+                    
+                    notificationManager.showDepartureNotification(
+                        title = "🧠 실제 일정 RAG 테스트",
+                        message = "일정: ${firstEvent.title}\n위치: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage",
+                        eventId = "rag_test_real"
+                    )
+                } else {
+                    notificationManager.showDepartureNotification(
+                        title = "RAG 테스트",
+                        message = "캘린더에 일정이 없습니다. 일정을 추가해보세요!",
+                        eventId = "no_events"
+                    )
+                }
                 
             } catch (e: Exception) {
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
