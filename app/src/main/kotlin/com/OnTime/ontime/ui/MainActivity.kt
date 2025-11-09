@@ -45,7 +45,6 @@ import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import com.OnTime.ontime.util.Constants
-import com.OnTime.ontime.util.LocationConverter
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.location.FusedLocationProviderClient
@@ -64,15 +63,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        // 경로 계산 백그라운드 작업 시작
-        com.OnTime.ontime.service.RouteCalculationWorker.schedulePeriodicWork(this)
-
         locationCallback = object : LocationCallback() {
             override fun onLocationResult(locationResult: LocationResult) {
-                locationResult.lastLocation?.let { location ->
-                    val calendarViewModel: CalendarViewModel = ViewModelProvider(this@MainActivity, ViewModelProvider.AndroidViewModelFactory.getInstance(application)).get(CalendarViewModel::class.java)
-                    // 위치 업데이트 처리
-                }
+                // 위치 업데이트 처리
             }
         }
 
@@ -110,7 +103,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Check for permissions again before starting updates
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
             startLocationUpdates()
         }
@@ -135,12 +127,6 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
         val areGranted = permissionsMap.values.all { it }
-        if (areGranted) {
-            // Permissions granted, proceed with location-based features
-            // The location updates will start in onResume
-        } else {
-            // Handle the case where permissions are denied
-        }
     }
 
     LaunchedEffect(Unit) {
@@ -155,7 +141,6 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
-    val travelMode by calendarViewModel.travelMode.observeAsState(initial = Constants.MODE_TRANSIT)
 
     Scaffold(
         topBar = {
@@ -168,10 +153,10 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                 },
                 actions = {
                     IconButton(onClick = {
-                        // 거리 계산 테스트 - 홍대 예시
-                        calendarViewModel.testTravelCalculation()
+                        val intent = Intent(context, NotificationHistoryActivity::class.java)
+                        context.startActivity(intent)
                     }) {
-                        Icon(Icons.Outlined.Notifications, "거리 테스트")
+                        Icon(Icons.Outlined.Notifications, "알림 히스토리")
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
@@ -188,11 +173,17 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     }) {
                         Icon(Icons.Default.ExitToApp, "로그아웃")
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
-                )
+                }
             )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = {
+                    calendarViewModel.testRAGSystem()
+                }
+            ) {
+                Text("🧠")
+            }
         }
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
@@ -209,7 +200,7 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
                     items(events) { event ->
-                        ModernEventCard(event, null)
+                        ModernEventCard(event)
                     }
                 }
             }
@@ -217,13 +208,35 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
     }
 }
 
+@Composable
+fun EmptyState(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            text = "📅",
+            fontSize = 48.sp
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            text = "일정이 없습니다",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Text(
+            text = "Google 캘린더에 일정을 추가해보세요",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
 
 @Composable
-fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?) {
+fun ModernEventCard(event: CalendarEvent) {
     val dateFormat = SimpleDateFormat("MM월 dd일", Locale.KOREA)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
-    val timeUntil = (event.startTime - now) / (60 * 1000) // 분 단위
+    val timeUntil = (event.startTime - now) / (60 * 1000)
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -243,11 +256,9 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                 )
                 .padding(20.dp)
         ) {
-            // 상단: 제목과 시간까지 남은 시간
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-                ,
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.Top
             ) {
                 Column(modifier = Modifier.weight(1f)) {
@@ -267,7 +278,6 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                     }
                 }
 
-                // 시간까지 남은 시간 배지
                 Surface(
                     shape = RoundedCornerShape(12.dp),
                     color = when {
@@ -285,19 +295,13 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                         },
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = when {
-                            timeUntil < 30 -> MaterialTheme.colorScheme.onErrorContainer
-                            timeUntil < 60 -> MaterialTheme.colorScheme.onTertiaryContainer
-                            else -> MaterialTheme.colorScheme.onSecondaryContainer
-                        }
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 날짜 및 시간
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier.padding(bottom = 8.dp)
@@ -316,28 +320,6 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                 )
             }
 
-            // 출발지 (현재 위치)
-            currentLocation?.let {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 4.dp)
-                ) {
-                    Icon(
-                        Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "출발: 현재 위치 (${String.format("%.4f, %.4f", it.first, it.second)})",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-
-            // 도착지
             event.location?.let {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
@@ -351,7 +333,7 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "도착: ${it} (${String.format("%.4f, %.4f", event.destinationLatLng?.first ?: 0.0, event.destinationLatLng?.second ?: 0.0)})",
+                        text = "도착: $it",
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface
                     )
@@ -360,7 +342,6 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // 하단: 예상 정보
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -379,35 +360,10 @@ fun ModernEventCard(event: CalendarEvent, currentLocation: Pair<Double, Double>?
                     label = "출발시간",
                     value = "계산 중..."
                 )
-                event.weatherInfo?.let { weatherList ->
-                    val skyCondition = weatherList.find { it.category == "SKY" }?.fcstValue
-                    val temperature = weatherList.find { it.category == "TMP" }?.fcstValue
-
-                    skyCondition?.let { sky ->
-                        InfoChip(
-                            icon = Icons.Outlined.Notifications, // TODO: Change to weather icon
-                            label = "하늘상태",
-                            value = when (sky.toInt()) {
-                                1 -> "맑음"
-                                3 -> "구름많음"
-                                4 -> "흐림"
-                                else -> "알 수 없음"
-                            }
-                        )
-                    }
-                    temperature?.let { temp ->
-                        InfoChip(
-                            icon = Icons.Outlined.Notifications, // TODO: Change to temperature icon
-                            label = "기온",
-                            value = "${temp}°C"
-                        )
-                    }
-                }
             }
         }
     }
 }
-
 
 @Composable
 fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
@@ -415,13 +371,13 @@ fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Strin
         Icon(
             icon,
             contentDescription = null,
-            modifier = Modifier.size(20.dp),
+            modifier = Modifier.size(16.dp),
             tint = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
             text = label,
-            fontSize = 11.sp,
+            fontSize = 10.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
@@ -430,81 +386,4 @@ fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: Strin
             fontWeight = FontWeight.Bold
         )
     }
-}
-
-@Composable
-fun EmptyState(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(
-                text = "📅",
-                fontSize = 48.sp
-            )
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = "일정이 없습니다",
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Text(
-                text = "캘린더를 연동해주세요",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-    }
-}
-
-@Composable
-fun TravelModeSelector(
-    selectedMode: String,
-    onModeSelected: (String) -> Unit
-) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        TravelModeChip(
-            mode = Constants.MODE_TRANSIT,
-            label = "대중교통",
-            isSelected = selectedMode == Constants.MODE_TRANSIT,
-            onClick = { onModeSelected(Constants.MODE_TRANSIT) },
-            modifier = Modifier.weight(1f)
-        )
-        TravelModeChip(
-            mode = Constants.MODE_DRIVING,
-            label = "자가용",
-            isSelected = selectedMode == Constants.MODE_DRIVING,
-            onClick = { onModeSelected(Constants.MODE_DRIVING) },
-            modifier = Modifier.weight(1f)
-        )
-        TravelModeChip(
-            mode = Constants.MODE_WALKING,
-            label = "도보",
-            isSelected = selectedMode == Constants.MODE_WALKING,
-            onClick = { onModeSelected(Constants.MODE_WALKING) },
-            modifier = Modifier.weight(1f)
-        )
-    }
-}
-
-@Composable
-fun TravelModeChip(
-    mode: String,
-    label: String,
-    isSelected: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    FilterChip(
-        onClick = onClick,
-        label = { Text(label) },
-        selected = isSelected,
-        modifier = modifier
-    )
 }
