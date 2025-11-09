@@ -31,6 +31,7 @@ class CalendarViewModel(
     val travelMode: LiveData<String> = _travelMode
     
     private val travelTimeRepository = TravelTimeRepository(application)
+    private val autoLearningService = com.OnTime.ontime.service.AutoLearningService(application)
     
     fun loadEventsWithTravelTime() {
         _isLoading.value = true
@@ -56,6 +57,9 @@ class CalendarViewModel(
             try {
                 val travelInfo = travelTimeRepository.calculateTravelTimeForEvent(event, currentMode)
                 if (travelInfo != null) {
+                    // 자동 학습 예약
+                    autoLearningService.scheduleAutoLearning(event, travelInfo.durationText)
+                    
                     val updatedEvents = _events.value?.map { 
                         if (it.id == event.id) {
                             it.copy(travelDuration = travelInfo.durationText)
@@ -151,6 +155,44 @@ class CalendarViewModel(
                     title = "테스트 오류",
                     message = "오류: ${e.message}",
                     eventId = "error_exception"
+                )
+            }
+        }
+    }
+    
+    fun testRAGSystem() {
+        viewModelScope.launch {
+            try {
+                val ragService = com.OnTime.ontime.service.FirebaseRAGService()
+                val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                
+                val testEvent = CalendarEvent(
+                    id = "rag_test",
+                    title = "홍대 만나기", 
+                    location = "홍대입구역",
+                    description = null,
+                    startTime = System.currentTimeMillis(),
+                    endTime = System.currentTimeMillis()
+                )
+                
+                val ragMessage = ragService.generateRAGNotification(
+                    event = testEvent,
+                    travelTime = "25분",
+                    weatherCondition = "맑음"
+                )
+                
+                notificationManager.showDepartureNotification(
+                    title = "🧠 RAG 테스트 성공!",
+                    message = ragMessage,
+                    eventId = "rag_test"
+                )
+                
+            } catch (e: Exception) {
+                val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
+                notificationManager.showDepartureNotification(
+                    title = "RAG 오류",
+                    message = "오류: ${e.message}",
+                    eventId = "rag_error"
                 )
             }
         }

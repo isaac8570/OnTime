@@ -168,10 +168,10 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                 },
                 actions = {
                     IconButton(onClick = {
-                        // 거리 계산 테스트 - 홍대 예시
-                        calendarViewModel.testTravelCalculation()
+                        // RAG 시스템 테스트
+                        calendarViewModel.testRAGSystem()
                     }) {
-                        Icon(Icons.Outlined.Notifications, "거리 테스트")
+                        Icon(Icons.Outlined.Notifications, "RAG 테스트")
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
