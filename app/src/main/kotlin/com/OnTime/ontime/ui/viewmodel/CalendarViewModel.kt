@@ -175,6 +175,15 @@ class CalendarViewModel(
                     // 첫 번째 실제 일정으로 테스트
                     val firstEvent = realEvents.first()
                     
+                    // 현재 위치 가져오기
+                    val locationService = com.OnTime.ontime.service.LocationService(getApplication())
+                    val currentLocation = locationService.getCurrentLocation()
+                    val myLocationText = if (currentLocation != null) {
+                        "위도: ${String.format("%.4f", currentLocation.latitude)}, 경도: ${String.format("%.4f", currentLocation.longitude)}"
+                    } else {
+                        "위치 정보 없음"
+                    }
+                    
                     // AI로 위치 추출
                     val extractedLocation = locationExtractor.extractLocationFromText(
                         eventTitle = firstEvent.title,
@@ -199,13 +208,14 @@ class CalendarViewModel(
                         weatherCondition = "맑음"
                     )
                     
-                    val fullMessage = "일정: ${firstEvent.title}\n위치: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage"
+                    val fullMessage = "일정: ${firstEvent.title}\n내 위치: $myLocationText\n목적지: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage"
                     
                     // 히스토리에 저장
                     historyService.saveNotification(
                         title = "🧠 실제 일정 RAG 테스트",
                         message = fullMessage,
                         eventTitle = firstEvent.title,
+                        myLocation = myLocationText,
                         extractedLocation = extractedLocation,
                         travelTime = travelTime,
                         ragMessage = ragMessage,
