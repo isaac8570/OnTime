@@ -20,12 +20,13 @@ class WeatherRepository(
 
         return try {
             val response = kmaWeatherApiService.getShortTermForecast(
-                serviceKey = BuildConfig.KMA_WEATHER_API_KEY,
+                serviceKey = com.OnTime.ontime.util.Constants.WEATHER_API_KEY,
                 baseDate = baseDate,
                 baseTime = baseTime,
                 nx = nx,
                 ny = ny
             )
+            Logger.d("WeatherRepository: KMA API Response: $response")
             if (response.response.header.resultCode == "00") {
                 response.response.body.items.item
             } else {
