@@ -1,16 +1,15 @@
 package com.OnTime.ontime.ui
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.Looper
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,63 +36,65 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.OnTime.ontime.DataCollectionActivity
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.LocationRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
+import com.OnTime.ontime.service.AndroidLocationService
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import com.OnTime.ontime.ui.viewmodel.MainViewModel
-import com.OnTime.ontime.util.Constants
+import com.OnTime.ontime.ui.viewmodel.ViewModelFactory
+// ✅ 이 줄이 추가되었습니다!
+import com.OnTime.ontime.util.LocationConverter
+import com.OnTime.ontime.worker.CalendarSyncWorker
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
 import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
+import java.util.*
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationCallback: LocationCallback
+
+    private val factory: ViewModelFactory by lazy {
+        val app = application
+        val calendarRepository = CalendarRepository(app)
+        val weatherRepository = WeatherRepository()
+        val locationRepository = LocationRepository(app)
+        val androidLocationService = AndroidLocationService(app)
+
+        ViewModelFactory(
+            application = app,
+            calendarRepository = calendarRepository,
+            weatherRepository = weatherRepository,
+            locationRepository = locationRepository,
+            androidLocationService = androidLocationService
+        )
+    }
+
+    private val calendarViewModel: CalendarViewModel by viewModels { factory }
+    private val mainViewModel: MainViewModel by viewModels { factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                // 위치 업데이트 처리
-            }
-        }
+        // Schedule CalendarSyncWorker
+        val calendarSyncRequest = PeriodicWorkRequestBuilder<CalendarSyncWorker>(
+            15, TimeUnit.MINUTES // Run every 15 minutes
+        ).build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "CalendarSyncWork",
+            ExistingPeriodicWorkPolicy.KEEP, // Keep existing work if already enqueued
+            calendarSyncRequest
+        )
 
         setContent {
             OnTimeTheme {
-                val calendarFactory = object : ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        if (modelClass.isAssignableFrom(CalendarViewModel::class.java)) {
-                            @Suppress("UNCHECKED_CAST")
-                            return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
-                        }
-                        throw IllegalArgumentException("Unknown ViewModel class")
-                    }
-                }
-                val mainFactory = object : ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
-                            @Suppress("UNCHECKED_CAST")
-                            return MainViewModel(application, WeatherRepository(), com.OnTime.ontime.service.LocationService(application)) as T
-                        }
-                        throw IllegalArgumentException("Unknown ViewModel class")
-                    }
-                }
-                val calendarViewModel: CalendarViewModel = viewModel(factory = calendarFactory)
-                val mainViewModel: MainViewModel = viewModel(factory = mainFactory)
-
                 MainScreen(
                     onSettingsClick = {
                         startActivity(Intent(this, SettingsActivity::class.java))
@@ -104,34 +105,9 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
-
-    @SuppressLint("MissingPermission")
-    private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.create().apply {
-            interval = 10000
-            fastestInterval = 5000
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-    }
-
-    private fun stopLocationUpdates() {
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            startLocationUpdates()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        stopLocationUpdates()
-    }
 }
 
+// 나머지 코드는 이전과 동일합니다.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -266,6 +242,17 @@ fun MainScreen(
                             Text("예상 시간 확인하기 (실시간)")
                         }
                     }
+                }
+
+                // Button to launch DataCollectionActivity
+                Button(
+                    onClick = {
+                        val intent = Intent(context, DataCollectionActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("데이터 수집 페이지로 이동")
                 }
             }
 

@@ -20,7 +20,7 @@ class WeatherRepository(
 
         return try {
             val response = kmaWeatherApiService.getShortTermForecast(
-                serviceKey = com.OnTime.ontime.util.Constants.WEATHER_API_KEY,
+                serviceKey = BuildConfig.WEATHER_API_KEY, // Changed to BuildConfig.WEATHER_API_KEY
                 baseDate = baseDate,
                 baseTime = baseTime,
                 nx = nx,
@@ -36,6 +36,31 @@ class WeatherRepository(
         } catch (e: Exception) {
             Logger.e("WeatherRepository: Error fetching KMA weather: ${e.message}", e)
             emptyList()
+        }
+    }
+
+    suspend fun getWeatherCondition(gridCoords: Pair<Int, Int>?): String {
+        if (gridCoords == null) {
+            return "알 수 없음"
+        }
+        return try {
+            val weatherItems = getShortTermForecast(gridCoords.first, gridCoords.second)
+            val ptyItem = weatherItems.find { it.category == "PTY" }?.fcstValue // 강수 형태
+            val skyItem = weatherItems.find { it.category == "SKY" }?.fcstValue // 하늘 상태
+
+            when (ptyItem) {
+                "1", "2", "4" -> "비" // 비, 비/눈, 소나기
+                "3" -> "눈" // 눈
+                else -> when (skyItem) {
+                    "1" -> "맑음"
+                    "3" -> "구름많음"
+                    "4" -> "흐림"
+                    else -> "알 수 없음"
+                }
+            }
+        } catch (e: Exception) {
+            Logger.e("WeatherRepository: Error getting simplified weather condition: ${e.message}", e)
+            "알 수 없음"
         }
     }
 }

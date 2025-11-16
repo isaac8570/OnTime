@@ -1,12 +1,15 @@
 package com.OnTime.ontime.ui.viewmodel
 
 import android.app.Application
+import android.Manifest // Add this import
+import android.content.pm.PackageManager // Add this import
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.OnTime.ontime.data.repositories.WeatherRepository
-import com.OnTime.ontime.service.LocationService
+import com.OnTime.ontime.data.repositories.LocationRepository // Add this import
+import com.OnTime.ontime.service.ILocationService
 import com.OnTime.ontime.util.LocationConverter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -16,7 +19,8 @@ import kotlin.math.roundToInt
 class MainViewModel(
     application: Application,
     private val weatherRepository: WeatherRepository,
-    private val locationService: LocationService
+    private val locationService: ILocationService,
+    private val locationRepository: LocationRepository // Add LocationRepository
 ) : AndroidViewModel(application) {
 
     private val _notificationMessage = MutableLiveData<String>()
@@ -28,6 +32,22 @@ class MainViewModel(
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
 
+    // Function to start the location tracking service
+    fun startLocationTracking() {
+        locationService.startLocationUpdatesService()
+    }
+
+    // Function to stop the location tracking service
+    fun stopLocationTracking() {
+        locationService.stopLocationUpdatesService()
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        // Stop location tracking when the ViewModel is cleared (e.g., activity destroyed)
+        stopLocationTracking()
+    }
+
     /**
      * 실시간 위치 및 날씨 데이터를 기반으로 알림 메시지를 생성합니다.
      */
@@ -35,7 +55,7 @@ class MainViewModel(
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                val location = locationService.getCurrentLocation() ?: run {
+                val location = locationRepository.getCurrentLocation() ?: run { // Use locationRepository
                     _notificationMessage.value = "현재 위치를 가져올 수 없습니다. 위치 권한을 확인해주세요."
                     _isLoading.value = false
                     return@launch
@@ -74,7 +94,7 @@ class MainViewModel(
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                val location = locationService.getCurrentLocation() ?: run {
+                val location = locationRepository.getCurrentLocation() ?: run { // Use locationRepository
                     _weatherStatus.value = "현재 위치를 가져올 수 없습니다. 위치 권한을 확인해주세요."
                     _isLoading.value = false
                     return@launch
@@ -123,6 +143,7 @@ class MainViewModel(
             }
         }
     }
+
 
     private fun generateMessage(weatherCondition: String, personalizedEta: Double, googleEta: Double) {
         val etaDifference = personalizedEta - googleEta

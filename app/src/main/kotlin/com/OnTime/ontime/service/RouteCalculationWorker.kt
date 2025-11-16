@@ -19,22 +19,34 @@ class RouteCalculationWorker(
 ) : CoroutineWorker(context, params) {
 
     private val directionsService = RetrofitClient.directionsService
-    private val calendarRepository = CalendarRepository()
+
+    // ★★★ [수정 1] calendarRepository 생성 시 applicationContext를 전달합니다. ★★★
+    private val calendarRepository = CalendarRepository(applicationContext)
+
     private val locationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
-    private val notificationScheduler = NotificationScheduler(context)
+
+    // 'notificationScheduler'를 선언만 합니다.
+    private val notificationScheduler: NotificationScheduler
+
+    // init 블록에서 context를 사용하여 초기화합니다.
+    init {
+        notificationScheduler = NotificationScheduler(context)
+    }
 
     override suspend fun doWork(): Result {
         return try {
-            val upcomingEvents = calendarRepository.getEvents(applicationContext)
-            
+            // ★★★ [수정 2] getEvents()를 호출할 때 context 파라미터를 제거합니다. ★★★
+            val upcomingEvents = calendarRepository.getEvents()
+
             for (event in upcomingEvents) {
                 if (!event.location.isNullOrEmpty()) {
                     calculateAndScheduleNotification(event)
                 }
             }
-            
+
             Result.success()
         } catch (e: Exception) {
+            // 실패 시 재시도하도록 설정합니다.
             Result.retry()
         }
     }
@@ -42,29 +54,40 @@ class RouteCalculationWorker(
     private suspend fun calculateAndScheduleNotification(event: CalendarEvent) {
         try {
             val currentLocation = getCurrentLocation()
-            val travelTime = calculateTravelTime(currentLocation, event.location!!)
-            
-            if (travelTime > 0) {
-                val departureTime = event.startTime - (travelTime * 1000) - (15 * 60 * 1000) // 15분 여유
-                
-                if (departureTime > System.currentTimeMillis()) {
-                    notificationScheduler.scheduleNotification(
-                        event = event,
-                        departureTime = departureTime,
-                        travelTimeMinutes = travelTime / 60
-                    )
+            // event.location이 null이 아님을 !!로 단언하기보다 안전하게 처리합니다.
+            event.location?.let { destination ->
+                val travelTime = calculateTravelTime(currentLocation, destination)
+
+                if (travelTime > 0) {
+                    val travelTimeMillis = travelTime * 1000L
+                    val bufferMillis = 15 * 60 * 1000L // 15분 여유 시간
+                    val departureTime = event.startTime - travelTimeMillis - bufferMillis
+
+                    if (departureTime > System.currentTimeMillis()) {
+                        notificationScheduler.scheduleNotification(
+                            event = event,
+                            departureTime = departureTime,
+                            travelTimeMinutes = travelTime / 60
+                        )
+                    }
                 }
             }
         } catch (e: Exception) {
-            // 로그 처리
+            // 에러 로그를 남기는 것이 좋습니다. (예: Log.e("RouteCalculationWorker", "Error calculating notification", e))
         }
     }
 
     private suspend fun getCurrentLocation(): String {
+        // 위치 권한이 거부되었을 때 발생하는 SecurityException을 처리합니다.
         return try {
-            val location = locationClient.lastLocation.await()
-            "${location.latitude},${location.longitude}"
+            val location: Location? = locationClient.lastLocation.await()
+            // location이 null일 경우를 대비하여 기본값을 사용합니다.
+            location?.let { "${it.latitude},${it.longitude}" } ?: "37.5665,126.9780" // 위치 정보 없을 시 서울을 기본값으로 사용
+        } catch (e: SecurityException) {
+            // 위치 권한이 없을 경우
+            "37.5665,126.9780" // 서울 기본값
         } catch (e: Exception) {
+            // 그 외 예외 발생 시
             "37.5665,126.9780" // 서울 기본값
         }
     }
@@ -77,12 +100,9 @@ class RouteCalculationWorker(
                 mode = "transit", // 대중교통
                 apiKey = Constants.GOOGLE_MAPS_API_KEY
             )
-            
-            if (response.isSuccessful && response.body()?.routes?.isNotEmpty() == true) {
-                response.body()!!.routes[0].legs[0].duration.value
-            } else {
-                0
-            }
+
+            // optional 체이닝으로 더 안전하게 접근합니다.
+            response.body()?.routes?.firstOrNull()?.legs?.firstOrNull()?.duration?.value ?: 0
         } catch (e: Exception) {
             0
         }
@@ -90,15 +110,15 @@ class RouteCalculationWorker(
 
     companion object {
         const val KEY_TRAVEL_DURATION = "travel_duration"
-        
+
         fun schedulePeriodicWork(context: Context) {
+            val constraints = Constraints.Builder()
+                .setRequiredNetworkType(NetworkType.CONNECTED)
+                .build()
+
             val workRequest = PeriodicWorkRequestBuilder<RouteCalculationWorker>(
                 15, TimeUnit.MINUTES
-            ).setConstraints(
-                Constraints.Builder()
-                    .setRequiredNetworkType(NetworkType.CONNECTED)
-                    .build()
-            ).build()
+            ).setConstraints(constraints).build()
 
             WorkManager.getInstance(context).enqueueUniquePeriodicWork(
                 "route_calculation",
