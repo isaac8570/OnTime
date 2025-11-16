@@ -88,6 +88,7 @@ fun TestPageScreen(
 
     var currentLatitude by remember { mutableStateOf<Double?>(null) }
     var currentLongitude by remember { mutableStateOf<Double?>(null) }
+    var currentAddress by remember { mutableStateOf<String?>(null) } // State for current address
     var locationPermissionGranted by remember { mutableStateOf(false) }
 
     var calendarEvents by remember { mutableStateOf<List<CalendarEvent>>(emptyList()) }
@@ -122,6 +123,9 @@ fun TestPageScreen(
                 currentLongitude = location?.longitude
                 if (location != null) {
                     originLatLng = Pair(location.latitude, location.longitude)
+                    coroutineScope.launch { // Resolve address
+                        currentAddress = LocationConverter.latLngToAddress(context, location.latitude, location.longitude)
+                    }
                 }
             }
         }
@@ -168,6 +172,9 @@ fun TestPageScreen(
                     currentLongitude = location?.longitude
                     if (location != null) {
                         originLatLng = Pair(location.latitude, location.longitude)
+                        coroutineScope.launch { // Resolve address
+                            currentAddress = LocationConverter.latLngToAddress(context, location.latitude, location.longitude)
+                        }
                     }
                 }
             }
@@ -260,6 +267,7 @@ fun TestPageScreen(
         if (locationPermissionGranted) {
             Text("위도: ${currentLatitude ?: "정보 없음"}")
             Text("경도: ${currentLongitude ?: "정보 없음"}")
+            Text("주소: ${currentAddress ?: "주소 확인 중..."}") // Display current address
         } else {
             Text("위치 권한이 허용되지 않았습니다.")
             Button(onClick = {
