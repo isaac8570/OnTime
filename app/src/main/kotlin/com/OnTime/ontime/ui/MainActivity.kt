@@ -153,12 +153,14 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    /* Removed NotificationHistoryActivity navigation
                     IconButton(onClick = {
                         val intent = Intent(context, NotificationHistoryActivity::class.java)
                         context.startActivity(intent)
                     }) {
                         Icon(Icons.Outlined.Notifications, "알림 히스토리")
                     }
+                    */
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
                     }

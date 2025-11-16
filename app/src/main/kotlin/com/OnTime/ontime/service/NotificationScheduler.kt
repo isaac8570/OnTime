@@ -4,23 +4,55 @@ import android.app.AlarmManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
-import android.os.Build // Build 클래스를 import 합니다.
+import android.os.Build
+import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
+import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
+import kotlinx.coroutines.runBlocking // For calling suspend functions
+import java.time.LocalTime // Required for NotificationBuilder
+import java.time.ZoneId // Required for LocalTime conversion
+import java.time.Instant // Required for LocalTime conversion
 
-class NotificationScheduler(private val context: Context) {
+
+class NotificationScheduler(
+    private val context: Context,
+    private val notificationBuilder: NotificationBuilder, // Add NotificationBuilder dependency
+    private val settingsRepository: SettingsRepository // Add SettingsRepository dependency
+) {
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     fun scheduleNotification(
         event: CalendarEvent,
         departureTime: Long,
-        travelTimeMinutes: Int
+        estimatedTravelTimeMinutes: Int, // This is googleEtaMin
+        predictedActualTravelTimeMinutes: Int?, // Predicted actual travel time from model/tracking
+        weatherInfo: String // Add weatherInfo parameter
     ) {
+        // Fetch user preferences
+        val userPreferences = runBlocking { settingsRepository.getUserPreferences() }
+
+        // Generate personalized message using NotificationBuilder
+        val notificationMessage = runBlocking {
+            notificationBuilder.generateNotificationMessage(
+                userPreferences = userPreferences,
+                eventName = event.title,
+                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(event.startTime), ZoneId.systemDefault()), // Convert Long to LocalTime
+                travelTime = estimatedTravelTimeMinutes,
+                actualTravelTime = predictedActualTravelTimeMinutes,
+                weatherInfo = weatherInfo, // Use the passed weatherInfo
+                userPattern = "과거 패턴 정보가 있을 경우 여기에 추가" // TODO: Integrate actual user pattern logic
+            )
+        }
+
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra("event_title", event.title)
             putExtra("event_location", event.location)
-            putExtra("travel_time", travelTimeMinutes)
+            putExtra("travel_time", estimatedTravelTimeMinutes)
             putExtra("event_id", event.id)
+            putExtra("notification_message", notificationMessage ?: "일정에 늦지 않도록 준비하세요!") // Pass generated message
+            // Add notification count from user preferences
+            putExtra("notification_count", userPreferences.notificationCount)
         }
 
         val pendingIntent = PendingIntent.getBroadcast(

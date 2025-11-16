@@ -29,7 +29,7 @@ fun NotificationSettingsSection(
 ) {
     Column(Modifier.fillMaxWidth()) {
         Text("알림 메시지 톤", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp)) // Corrected here
         Card {
             Column(Modifier.padding(vertical = 8.dp)) {
                 NotificationTone.values().forEach { tone ->
@@ -43,7 +43,7 @@ fun NotificationSettingsSection(
                             selected = (tone == currentTone),
                             onClick = { onToneSelected(tone) }
                         )
-                        Spacer(Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(tone.description)
                     }
                 }
@@ -65,7 +65,7 @@ fun NotificationCountSetting(
 ) {
     Column(Modifier.fillMaxWidth()) {
         Text("알림 횟수", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp)) // Corrected here
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
                 Text(text = "일정 당 받을 알림 횟수를 설정합니다: $currentCount 회")
@@ -97,9 +97,9 @@ fun NotificationTestSection(
     val notificationBuilder = remember { NotificationBuilder() }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Spacer(Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(24.dp)) // Corrected here
         Text("설정 테스트", style = MaterialTheme.typography.titleLarge)
-        Spacer(Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(8.dp)) // Corrected here
 
         // --- 테스트 실행 버튼 ---
         Button(
@@ -124,6 +124,7 @@ fun NotificationTestSection(
                         eventName = "테스트 약속",
                         eventTime = LocalTime.of(10, 0), // API Level 26 이상에서만 실행됨
                         travelTime = 30,
+                        actualTravelTime = null, // Explicitly pass null for actualTravelTime
                         weatherInfo = "맑음",
                         userPattern = null
                     )
@@ -137,7 +138,7 @@ fun NotificationTestSection(
             Text("테스트 알림 생성 (${testTone.description})")
         }
 
-        Spacer(Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         // --- 결과 표시 ---
         Card(modifier = Modifier.fillMaxWidth()) {

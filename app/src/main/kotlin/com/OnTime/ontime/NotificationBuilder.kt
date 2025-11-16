@@ -25,7 +25,8 @@ class NotificationBuilder {
      * @param userPreferences 사용자가 설정한 기본값 (메시지 톤 등)
      * @param eventName 일정 이름 (예: "강남역 회의")
      * @param eventTime 일정 시작 시간 (예: LocalTime.of(14, 0))
-     * @param travelTime 예상 이동 시간 (분 단위, 예: 30)
+     * @param travelTime 예상 이동 시간 (분 단위, 예: 30) (Google Maps ETA)
+     * @param actualTravelTime 실제 이동 시간 (분 단위, 예: 35). 이 값이 null이면 사용자가 제시간에 출발하도록 독려하는 일반적인 메시지를 생성.
      * @param weatherInfo 현재 또는 예보된 날씨 (예: "비, 기온 15도")
      * @param userPattern 사용자의 과거 행동 패턴 (예: "이 장소에 10분씩 늦는 경향이 있음")
      * @return 생성된 알림 메시지 문자열 또는 오류 시 null
@@ -34,13 +35,14 @@ class NotificationBuilder {
         userPreferences: UserPreferences,
         eventName: String,
         eventTime: LocalTime,
-        travelTime: Int,
+        travelTime: Int, // Estimated Travel Time (Google Maps ETA)
+        actualTravelTime: Int?, // Actual Travel Time (from tracking or model prediction)
         weatherInfo: String,
         userPattern: String? = null
     ): String? {
         return try {
             // 1. Gemini API에 전달할 프롬프트 구성
-            val prompt = createPrompt(userPreferences, eventName, eventTime, travelTime, weatherInfo, userPattern)
+            val prompt = createPrompt(userPreferences, eventName, eventTime, travelTime, actualTravelTime, weatherInfo, userPattern)
 
             // 2. Gemini API 호출
             val response = generativeModel.generateContent(prompt)
@@ -61,7 +63,8 @@ class NotificationBuilder {
         userPreferences: UserPreferences,
         eventName: String,
         eventTime: LocalTime,
-        travelTime: Int,
+        travelTime: Int, // Estimated Travel Time (Google Maps ETA)
+        actualTravelTime: Int?, // Actual Travel Time (from tracking or model prediction)
         weatherInfo: String,
         userPattern: String?
     ): String {
@@ -82,6 +85,42 @@ class NotificationBuilder {
             - 예상 출발 시간: $estimatedDepartureTime
             - 날씨: $weatherInfo
         """.trimIndent()
+
+        // Actual vs Estimated Travel Time Comparison
+        if (actualTravelTime != null) {
+            val timeDifference = actualTravelTime - travelTime // Positive means late, negative means early
+            if (timeDifference > 0) {
+                prompt += """
+                
+                [현재 상황]
+                - 현재 예상 도착 시간은 구글 지도의 예상 경로보다 ${timeDifference}분 늦을 것으로 예상됩니다.
+                사용자가 늦지 않도록 긴급성을 강조하는 메시지를 작성해 줘. 필요하다면 빨리 출발하도록 재촉해 줘.
+                """.trimIndent()
+            } else if (timeDifference < 0) {
+                val earlyMinutes = -timeDifference
+                prompt += """
+                
+                [현재 상황]
+                - 현재 예상 도착 시간은 구글 지도의 예상 경로보다 ${earlyMinutes}분 빠를 것으로 예상됩니다.
+                사용자가 너무 일찍 도착하지 않도록, 여유를 주면서도 제시간에 도착할 수 있도록 조언하는 메시지를 작성해 줘.
+                """.trimIndent()
+            } else {
+                prompt += """
+                
+                [현재 상황]
+                - 현재 예상 도착 시간은 구글 지도의 예상 경로와 거의 일치할 것으로 예상됩니다.
+                사용자가 현재처럼 잘 준비하여 제시간에 출발할 수 있도록 독려하는 메시지를 작성해 줘.
+                """.trimIndent()
+            }
+        } else {
+            prompt += """
+                
+                [현재 상황]
+                - 실제 이동 시간 정보가 아직 없습니다.
+                사용자가 예상 출발 시간에 맞춰 제시간에 준비하고 출발하도록 독려하는 일반적인 메시지를 작성해 줘.
+                """.trimIndent()
+        }
+
 
         if (userPattern != null && userPattern.isNotBlank()) {
             prompt += """
@@ -115,42 +154,57 @@ fun main() = runBlocking {
 
     val notificationBuilder = NotificationBuilder()
 
-    // 1. 시나리오 1: 기본 설정 (친근한 톤)
-    println("--- 시나리오 1: 친근한 톤으로 생성 중... ---")
-    val preferences1 = UserPreferences() // 기본값 사용
+    val userPreferences = UserPreferences() // Default friendly tone
+
+    // Scenario 1: User is late
+    println("--- 시나리오 1: 사용자가 늦을 경우 (긴급성 강조) ---")
     val message1 = notificationBuilder.generateNotificationMessage(
-        userPreferences = preferences1,
-        eventName = "판교역에서 친구 만나기",
-        eventTime = LocalTime.of(19, 0),
-        travelTime = 45,
-        weatherInfo = "맑음, 22도"
+        userPreferences = userPreferences,
+        eventName = "팀 회의",
+        eventTime = LocalTime.of(10, 0),
+        travelTime = 30, // Estimated ETA
+        actualTravelTime = 35, // Currently taking 35 mins (5 mins late)
+        weatherInfo = "맑음, 20도",
+        userPattern = "자주 지각하는 경향이 있음"
     )
     println(message1 ?: "메시지 생성 실패")
     println()
 
-    // 2. 시나리오 2: 격식있는 톤, 늦는 경향, 좋지 않은 날씨
-    println("--- 시나리오 2: 격식있는 톤으로 생성 중... ---")
-    val preferences2 = UserPreferences(notificationTone = NotificationTone.FORMAL)
+    // Scenario 2: User is early
+    println("--- 시나리오 2: 사용자가 빠를 경우 (여유 조언) ---")
     val message2 = notificationBuilder.generateNotificationMessage(
-        userPreferences = preferences2,
-        eventName = "중요한 비즈니스 미팅",
-        eventTime = LocalTime.of(10, 0),
-        travelTime = 25,
-        weatherInfo = "비 예보, 출근길 정체 예상",
-        userPattern = "과거 이 시간대 미팅에 두 번 지각한 기록이 있음"
+        userPreferences = userPreferences,
+        eventName = "친구와 점심 식사",
+        eventTime = LocalTime.of(13, 0),
+        travelTime = 20, // Estimated ETA
+        actualTravelTime = 15, // Currently taking 15 mins (5 mins early)
+        weatherInfo = "흐림, 18도"
     )
     println(message2 ?: "메시지 생성 실패")
     println()
-    
-    // 3. 시나리오 3: 재치있는 톤
-    println("--- 시나리오 3: 재치있는 톤으로 생성 중... ---")
-    val preferences3 = UserPreferences(notificationTone = NotificationTone.HUMOROUS)
+
+    // Scenario 3: User is on time
+    println("--- 시나리오 3: 사용자가 제시간일 경우 (독려) ---")
     val message3 = notificationBuilder.generateNotificationMessage(
-        userPreferences = preferences3,
-        eventName = "저녁 요가 클래스",
-        eventTime = LocalTime.of(20, 0),
-        travelTime = 15,
-        weatherInfo = "선선한 저녁 공기"
+        userPreferences = userPreferences,
+        eventName = "저녁 약속",
+        eventTime = LocalTime.of(19, 30),
+        travelTime = 40, // Estimated ETA
+        actualTravelTime = 40, // Currently taking 40 mins (on time)
+        weatherInfo = "선선함, 15도"
     )
     println(message3 ?: "메시지 생성 실패")
+    println()
+
+    // Scenario 4: actualTravelTime is null (general prompt)
+    println("--- 시나리오 4: 실제 이동 시간 정보가 없을 경우 (일반적인 독려) ---")
+    val message4 = notificationBuilder.generateNotificationMessage(
+        userPreferences = userPreferences,
+        eventName = "운동 수업",
+        eventTime = LocalTime.of(8, 0),
+        travelTime = 25, // Estimated ETA
+        actualTravelTime = null, // No actual time yet
+        weatherInfo = "쌀쌀함, 10도"
+    )
+    println(message4 ?: "메시지 생성 실패")
 }

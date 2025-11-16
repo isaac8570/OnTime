@@ -47,9 +47,7 @@
             android:name=".ui.SettingsActivity"
             android:exported="false" />
 
-        <activity
-            android:name=".ui.NotificationHistoryActivity"
-            android:exported="false" />
+        <!-- NotificationHistoryActivity removed as per user request -->
 
         <activity
             android:name=".DataCollectionActivity"

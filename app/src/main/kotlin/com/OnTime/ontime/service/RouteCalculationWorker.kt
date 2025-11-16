@@ -3,15 +3,21 @@ package com.OnTime.ontime.service
 import android.content.Context
 import android.location.Location
 import androidx.work.*
-import com.OnTime.ontime.api.DirectionsService
-import com.OnTime.ontime.api.RetrofitClient
+import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
+import com.OnTime.ontime.data.repositories.WeatherRepository // Import WeatherRepository
+import com.OnTime.ontime.api.DirectionsService
+import com.OnTime.ontime.api.RetrofitClient
 import com.OnTime.ontime.util.Constants
+import com.OnTime.ontime.util.LocationConverter // Import LocationConverter
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
+import kotlin.random.Random
+import java.util.Calendar // For getting day of week
 
 class RouteCalculationWorker(
     context: Context,
@@ -20,22 +26,21 @@ class RouteCalculationWorker(
 
     private val directionsService = RetrofitClient.directionsService
 
-    // ★★★ [수정 1] calendarRepository 생성 시 applicationContext를 전달합니다. ★★★
     private val calendarRepository = CalendarRepository(applicationContext)
+    private val settingsRepository = SettingsRepository(applicationContext)
+    private val weatherRepository = WeatherRepository() // Initialize WeatherRepository
+    private val notificationBuilder = NotificationBuilder()
 
     private val locationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
 
-    // 'notificationScheduler'를 선언만 합니다.
     private val notificationScheduler: NotificationScheduler
 
-    // init 블록에서 context를 사용하여 초기화합니다.
     init {
-        notificationScheduler = NotificationScheduler(context)
+        notificationScheduler = NotificationScheduler(applicationContext, notificationBuilder, settingsRepository)
     }
 
     override suspend fun doWork(): Result {
         return try {
-            // ★★★ [수정 2] getEvents()를 호출할 때 context 파라미터를 제거합니다. ★★★
             val upcomingEvents = calendarRepository.getEvents()
 
             for (event in upcomingEvents) {
@@ -46,20 +51,32 @@ class RouteCalculationWorker(
 
             Result.success()
         } catch (e: Exception) {
-            // 실패 시 재시도하도록 설정합니다.
+            e.printStackTrace()
             Result.retry()
         }
     }
 
     private suspend fun calculateAndScheduleNotification(event: CalendarEvent) {
         try {
-            val currentLocation = getCurrentLocation()
-            // event.location이 null이 아님을 !!로 단언하기보다 안전하게 처리합니다.
-            event.location?.let { destination ->
-                val travelTime = calculateTravelTime(currentLocation, destination)
+            val currentLocationString = getCurrentLocation()
+            event.location?.let { destinationAddress ->
+                val estimatedTravelTimeSeconds = calculateTravelTime(currentLocationString, destinationAddress)
+                val estimatedTravelTimeMinutes = estimatedTravelTimeSeconds / 60
 
-                if (travelTime > 0) {
-                    val travelTimeMillis = travelTime * 1000L
+                if (estimatedTravelTimeMinutes > 0) {
+                    // --- 모델 예측 플레이스홀더: predictedActualTravelTime 계산 ---
+                    val predictedRatio = 1.0 + (Random.nextDouble(-0.1, 0.1)) // -10% ~ +10%
+                    val predictedActualTravelTimeMinutes = (estimatedTravelTimeMinutes * predictedRatio).toInt()
+
+                    // --- 날씨 정보 fetch ---
+                    var weatherInfoString: String = "날씨 정보 없음"
+                    val destinationLatLng = LocationConverter.addressToLatLng(applicationContext, destinationAddress)
+                    if (destinationLatLng != null) {
+                        val gridCoords = LocationConverter.latLngToKmaGrid(destinationLatLng.first, destinationLatLng.second)
+                        weatherInfoString = weatherRepository.getWeatherCondition(gridCoords)
+                    }
+
+                    val travelTimeMillis = estimatedTravelTimeSeconds * 1000L
                     val bufferMillis = 15 * 60 * 1000L // 15분 여유 시간
                     val departureTime = event.startTime - travelTimeMillis - bufferMillis
 
@@ -67,27 +84,25 @@ class RouteCalculationWorker(
                         notificationScheduler.scheduleNotification(
                             event = event,
                             departureTime = departureTime,
-                            travelTimeMinutes = travelTime / 60
+                            estimatedTravelTimeMinutes = estimatedTravelTimeMinutes,
+                            predictedActualTravelTimeMinutes = predictedActualTravelTimeMinutes,
+                            weatherInfo = weatherInfoString // Pass fetched weather info
                         )
                     }
                 }
             }
         } catch (e: Exception) {
-            // 에러 로그를 남기는 것이 좋습니다. (예: Log.e("RouteCalculationWorker", "Error calculating notification", e))
+            e.printStackTrace()
         }
     }
 
     private suspend fun getCurrentLocation(): String {
-        // 위치 권한이 거부되었을 때 발생하는 SecurityException을 처리합니다.
         return try {
             val location: Location? = locationClient.lastLocation.await()
-            // location이 null일 경우를 대비하여 기본값을 사용합니다.
             location?.let { "${it.latitude},${it.longitude}" } ?: "37.5665,126.9780" // 위치 정보 없을 시 서울을 기본값으로 사용
         } catch (e: SecurityException) {
-            // 위치 권한이 없을 경우
             "37.5665,126.9780" // 서울 기본값
         } catch (e: Exception) {
-            // 그 외 예외 발생 시
             "37.5665,126.9780" // 서울 기본값
         }
     }
@@ -101,9 +116,9 @@ class RouteCalculationWorker(
                 apiKey = Constants.GOOGLE_MAPS_API_KEY
             )
 
-            // optional 체이닝으로 더 안전하게 접근합니다.
             response.body()?.routes?.firstOrNull()?.legs?.firstOrNull()?.duration?.value ?: 0
         } catch (e: Exception) {
+            e.printStackTrace()
             0
         }
     }
