@@ -14,28 +14,22 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-// 임포트 경로가 현재 패키지(com.OnTime.ontime.ui) 내에 있으므로,
-// 명시적으로 경로를 지정하는 대신 컴포넌트 이름만 임포트해도 됩니다.
-// 아니면 'import com.OnTime.ontime.ui.NotificationSettingsSection'처럼 명시해도 됩니다.
-// 여기서는 동일 패키지이므로 컴포넌트 이름만 임포트합니다.
 import com.OnTime.ontime.data.models.NotificationTone
 import com.OnTime.ontime.data.models.TransportMode
 import com.OnTime.ontime.data.models.UserPreferences
 import com.OnTime.ontime.data.repositories.SettingsRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
+import kotlinx.coroutines.launch // Import for coroutineScope.launch
 
 class SettingsActivity : ComponentActivity() {
-
-    private lateinit var settingsRepository: SettingsRepository
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        settingsRepository = SettingsRepository(this)
-
         setContent {
             OnTimeTheme {
-                SettingsScreen(settingsRepository)
+                // SettingsScreen is now responsible for creating its own SettingsRepository
+                SettingsScreen()
             }
         }
     }
@@ -43,17 +37,29 @@ class SettingsActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(settingsRepository: SettingsRepository) {
-    // 저장소에서 초기 설정을 불러옵니다.
-    val initialPreferences = remember { settingsRepository.getUserPreferences() }
-    var transportMode by remember { mutableStateOf(initialPreferences.transportMode) }
-    var notificationTone by remember { mutableStateOf(initialPreferences.notificationTone) }
-    var notificationCount by remember { mutableStateOf(initialPreferences.notificationCount) } // notificationCount 상태 추가
+fun SettingsScreen() {
+    val context = LocalContext.current
+    val settingsRepository = remember { SettingsRepository(context) }
+    val coroutineScope = rememberCoroutineScope()
 
-    // 설정이 변경될 때마다 저장소에 저장하는 함수입니다.
-    val onSettingsChanged = {
-        val newPreferences = UserPreferences(transportMode, notificationTone, notificationCount) // notificationCount 추가
-        settingsRepository.saveUserPreferences(newPreferences)
+    var transportMode by remember { mutableStateOf(UserPreferences().transportMode) }
+    var notificationTone by remember { mutableStateOf(UserPreferences().notificationTone) }
+    var notificationCount by remember { mutableStateOf(UserPreferences().notificationCount) }
+
+    // Load initial preferences when the Composable first enters the composition
+    LaunchedEffect(Unit) {
+        val initialPreferences = settingsRepository.getUserPreferences()
+        transportMode = initialPreferences.transportMode
+        notificationTone = initialPreferences.notificationTone
+        notificationCount = initialPreferences.notificationCount
+    }
+
+    // Function to save settings to repository
+    val onSettingsChanged: () -> Unit = {
+        val newPreferences = UserPreferences(transportMode, notificationTone, notificationCount)
+        coroutineScope.launch {
+            settingsRepository.saveUserPreferences(newPreferences)
+        }
     }
 
     Scaffold(

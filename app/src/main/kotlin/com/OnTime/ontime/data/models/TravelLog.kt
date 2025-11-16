@@ -1,9 +1,11 @@
 package com.OnTime.ontime.data.models
 
+import java.util.Date
+
 data class TravelLog(
-    val userId: String = "",
-    val eventId: String? = null,
-    val eventTitle: String? = null,
+    val userId: String = "", // Will be populated by repository from FirebaseAuth
+    val eventId: String = "",
+    val eventTitle: String = "",
     val originLat: Double = 0.0,
     val originLng: Double = 0.0,
     val destinationLat: Double = 0.0,
@@ -12,7 +14,7 @@ data class TravelLog(
     val actualEtaMin: Int = 0,
     val weather: String = "",
     val hourOfDay: Int = 0,
-    val dayOfWeek: Int = 0, // 1 for Monday, 7 for Sunday (as per ML script)
-    val distanceKm: Double = 0.0,
-    val timestamp: Long = System.currentTimeMillis() // Timestamp of when the log was created
+    val dayOfWeek: Int = 0, // 1-7 for Sunday-Saturday or Monday-Sunday, depending on locale/convention
+    val distanceKm: Double = 0.0, // This needs to be calculated from LocationRepository if available
+    val timestamp: Date = Date() // Firestore can handle Date objects directly
 )

@@ -254,6 +254,17 @@ fun MainScreen(
                 ) {
                     Text("데이터 수집 페이지로 이동")
                 }
+
+                // Button to launch TestPageActivity
+                Button(
+                    onClick = {
+                        val intent = Intent(context, TestPageActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("테스트 페이지로 이동")
+                }
             }
 
 

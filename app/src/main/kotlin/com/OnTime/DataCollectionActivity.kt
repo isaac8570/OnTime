@@ -1,32 +1,27 @@
 package com.OnTime.ontime
 
-import com.OnTime.ontime.R // 이 import는 그대로 둡니다.
 import android.os.Bundle
 import android.util.Log
 import android.widget.Button
 import android.widget.EditText
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
-// import com.google.firebase.FirebaseApp // 이 줄은 주석 처리합니다.
-// import com.google.firebase.firestore.FirebaseFirestore // 이 줄은 주석 처리합니다.
-import java.text.SimpleDateFormat // 이 줄은 그대로 둡니다 (SimpleDateFormat은 Locale과 Date를 필요로 하므로 일단 둡니다).
-import java.util.Date // 이 줄은 그대로 둡니다.
-import java.util.Locale // 이 줄은 그대로 둡니다.
+import androidx.lifecycle.lifecycleScope
+import com.OnTime.ontime.data.models.TravelLog
+import com.OnTime.ontime.data.repositories.TravelDataRepository
+import kotlinx.coroutines.launch
+import java.util.Date
+import java.util.Locale
 
 class DataCollectionActivity : AppCompatActivity() {
 
-    // private lateinit var firestore: FirebaseFirestore // 이 줄은 주석 처리합니다.
+    private lateinit var travelDataRepository: TravelDataRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_data_collection) // 이 줄은 그대로 둡니다.
+        setContentView(R.layout.activity_data_collection)
 
-        // 아래의 모든 Firebase 및 UI 로직을 임시로 주석 처리합니다.
-        /*
-        if (FirebaseApp.getApps(this).isEmpty()) {
-            FirebaseApp.initializeApp(this)
-        }
-        firestore = FirebaseFirestore.getInstance()
+        travelDataRepository = TravelDataRepository()
 
         val etUserId: EditText = findViewById(R.id.etUserId)
         val etGoogleEtaMin: EditText = findViewById(R.id.etGoogleEtaMin)
@@ -58,21 +53,21 @@ class DataCollectionActivity : AppCompatActivity() {
                 return@setOnClickListener
             }
 
-            val travelLog = hashMapOf(
-                "user_id" to userId,
-                "google_eta_min" to googleEtaMin,
-                "actual_eta_min" to actualEtaMin,
-                "weather" to weather,
-                "hour_of_day" to hourOfDay,
-                "day_of_week" to dayOfWeek,
-                "distance_km" to distanceKm,
-                "timestamp" to SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault()).format(Date())
+            val travelLog = TravelLog(
+                userId = userId,
+                googleEtaMin = googleEtaMin,
+                actualEtaMin = actualEtaMin,
+                weather = weather,
+                hourOfDay = hourOfDay,
+                dayOfWeek = dayOfWeek,
+                distanceKm = distanceKm,
+                timestamp = Date() // Use current Date
             )
 
-            firestore.collection("travel_logs")
-                .add(travelLog)
-                .addOnSuccessListener {
-                    Toast.makeText(this, "데이터가 성공적으로 제출되었습니다!", Toast.LENGTH_SHORT).show()
+            lifecycleScope.launch {
+                try {
+                    travelDataRepository.saveTravelLog(travelLog)
+                    Toast.makeText(this@DataCollectionActivity, "데이터가 성공적으로 제출되었습니다!", Toast.LENGTH_SHORT).show()
                     etUserId.text.clear()
                     etGoogleEtaMin.text.clear()
                     etActualEtaMin.text.clear()
@@ -80,14 +75,11 @@ class DataCollectionActivity : AppCompatActivity() {
                     etHourOfDay.text.clear()
                     etDayOfWeek.text.clear()
                     etDistanceKm.text.clear()
-                }
-                .addOnFailureListener { e ->
-                    Toast.makeText(this, "데이터 제출 실패: ${e.message}", Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(this@DataCollectionActivity, "데이터 제출 실패: ${e.message}", Toast.LENGTH_LONG).show()
                     Log.e("DataCollectionActivity", "Error adding document", e)
                 }
+            }
         }
-        */
-        // 액티비티가 시작되면 토스트 메시지를 띄워봅니다.
-        Toast.makeText(this, "DataCollectionActivity 시작됨", Toast.LENGTH_SHORT).show()
     }
 }

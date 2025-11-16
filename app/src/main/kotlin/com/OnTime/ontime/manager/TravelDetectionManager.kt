@@ -13,6 +13,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.util.Calendar // Import for Calendar object
+import java.util.Date     // Import for Date object (수정됨)
 import java.util.TimeZone // Import for TimeZone
 
 class TravelDetectionManager(
@@ -108,7 +109,7 @@ class TravelDetectionManager(
                 // User has arrived at destination
                 val actualTravelTimeMinutes = ((System.currentTimeMillis() - tripStartTime) / (1000 * 60)).toInt()
                 println("Arrived at destination for event: ${event.title}. Actual time: $actualTravelTimeMinutes minutes")
-                
+
                 // Collect all data and save TravelLog
                 scope.launch {
                     try {
@@ -140,7 +141,7 @@ class TravelDetectionManager(
                             hourOfDay = hourOfDay,
                             dayOfWeek = dayOfWeek,
                             distanceKm = googleTravelInfo?.distanceText?.replace("[^0-9.]".toRegex(), "")?.toDoubleOrNull() ?: 0.0,
-                            timestamp = System.currentTimeMillis()
+                            timestamp = Date(System.currentTimeMillis()) // (수정됨) Long을 Date 객체로 변환
                         )
                         travelLogRepository.saveTravelLog(travelLog)
                         println("TravelLog saved successfully for event: ${event.title}")
@@ -148,7 +149,7 @@ class TravelDetectionManager(
                         println("Error during data collection or saving TravelLog: ${e.message}")
                     }
                 }
-                
+
                 // Reset manager for next event
                 resetTripState()
             }
