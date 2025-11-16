@@ -5,7 +5,7 @@ import android.location.Location
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.models.TravelLog
 import com.OnTime.ontime.data.repositories.LocationRepository
-import com.OnTime.ontime.data.repositories.TravelLogRepository
+import com.OnTime.ontime.data.repositories.TravelDataRepository // Corrected import
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.util.LocationConverter
 import kotlinx.coroutines.CoroutineScope
@@ -20,7 +20,7 @@ class TravelDetectionManager(
     private val context: Context,
     private val locationRepository: LocationRepository,
     private val weatherRepository: WeatherRepository,
-    private val travelLogRepository: TravelLogRepository,
+    private val travelDataRepository: TravelDataRepository, // Corrected to TravelDataRepository
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.IO) // Use IO dispatcher for network/disk ops
 ) {
     private var activeTrip: ActiveTrip? = null // Use a data class to hold trip state
@@ -143,7 +143,7 @@ class TravelDetectionManager(
                             distanceKm = googleTravelInfo?.distanceText?.replace("[^0-9.]".toRegex(), "")?.toDoubleOrNull() ?: 0.0,
                             timestamp = Date(System.currentTimeMillis()) // (수정됨) Long을 Date 객체로 변환
                         )
-                        travelLogRepository.saveTravelLog(travelLog)
+                        travelDataRepository.saveTravelLog(travelLog) // Corrected to travelDataRepository
                         println("TravelLog saved successfully for event: ${event.title}")
                     } catch (e: Exception) {
                         println("Error during data collection or saving TravelLog: ${e.message}")

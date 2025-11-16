@@ -4,7 +4,7 @@ import android.content.Context
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.LocationRepository
-import com.OnTime.ontime.data.repositories.TravelLogRepository
+import com.OnTime.ontime.data.repositories.TravelDataRepository // Corrected import
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.google.firebase.firestore.FirebaseFirestore
 import kotlinx.coroutines.CoroutineScope
@@ -22,7 +22,7 @@ class TravelMonitorManager private constructor( // Private constructor for Singl
     private val calendarRepository: CalendarRepository,
     private val locationRepository: LocationRepository,
     private val weatherRepository: WeatherRepository,
-    private val travelLogRepository: TravelLogRepository,
+    private val travelDataRepository: TravelDataRepository, // Corrected to TravelDataRepository
     private val scope: CoroutineScope = CoroutineScope(Dispatchers.Default) // Use Default for main management
 ) {
     // Companion object for Singleton instance
@@ -34,7 +34,7 @@ class TravelMonitorManager private constructor( // Private constructor for Singl
             calendarRepository: CalendarRepository,
             locationRepository: LocationRepository,
             weatherRepository: WeatherRepository,
-            travelLogRepository: TravelLogRepository
+            travelDataRepository: TravelDataRepository // Corrected to TravelDataRepository
         ): TravelMonitorManager {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: TravelMonitorManager(
@@ -42,14 +42,14 @@ class TravelMonitorManager private constructor( // Private constructor for Singl
                     calendarRepository,
                     locationRepository,
                     weatherRepository,
-                    travelLogRepository
+                    travelDataRepository // Pass corrected dependency
                 ).also { INSTANCE = it }
             }
         }
     }
 
     private val travelDetectionManager = TravelDetectionManager(
-        context, locationRepository, weatherRepository, travelLogRepository, scope
+        context, locationRepository, weatherRepository, travelDataRepository, scope // Corrected to travelDataRepository
     )
 
     // Method to be called by CalendarSyncWorker

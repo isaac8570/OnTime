@@ -29,6 +29,7 @@
     *   **`NotificationListPageActivity.kt` 생성**: `app/src/main/kotlin/com/OnTime/ontime/ui/NotificationListPageActivity.kt`에 Firebase에서 알림 기록을 가져와 `LazyColumn`으로 표시하는 Composable 화면을 만들었습니다.
     *   **`AndroidManifest.xml` 업데이트**: `NotificationListPageActivity`를 선언했습니다.
     *   **`MainActivity.kt` 수정**: `TopAppBar`의 알림 아이콘(`Icons.Outlined.Notifications`) 클릭 시, `Toast` 메시지를 표시하는 대신 **`NotificationListPageActivity`로 이동**하도록 변경했습니다. (아이콘의 `contentDescription`도 "알림 내역"으로 변경)
+    *   **테스트 알림 추가 버튼**: `NotificationListPageActivity`에 `+` 버튼을 추가하여 클릭 시 테스트용 개인 맞춤 알림을 생성하고 Firebase에 저장한 후 목록에 바로 반영되도록 했습니다.
 
 4.  **`TestPageActivity.kt` 개선 및 오류 수정**:
     *   `kotlin.math.roundToInt` 확장 함수 관련 오류를 수정했습니다.
@@ -43,16 +44,13 @@
 2.  **메인 화면 확인**: `MainActivity`의 상단 바(TopAppBar)를 확인합니다.
 3.  **알림 아이콘 클릭**: "설정" 아이콘 왼쪽에 있는 **알림 아이콘**(`Icons.Outlined.Notifications`)을 클릭합니다.
 4.  **알림 내역 페이지 확인**: `NotificationListPageActivity`로 이동하며, Firebase에 저장된 개인 맞춤 알림 내역 목록을 볼 수 있습니다. (초기에는 비어있을 수 있습니다.)
+5.  **테스트 알림 추가**: 알림 내역 페이지 하단의 **`+` 버튼**을 클릭하여 테스트 알림을 생성하고 목록에 추가되는 것을 확인하세요.
 
-**알림 내역을 Firebase에 생성하는 방법:**
+**다음 단계 (모델 통합):**
 
-*   **백그라운드 워커를 통해 자동 생성**: `RouteCalculationWorker`가 주기적으로 실행되면서 알림을 예약하고 Firebase에 `NotificationRecord`를 저장합니다. 앱이 백그라운드에서 실행될 때 알림이 예약되면 기록이 쌓이게 됩니다.
-*   **`TestPageActivity`를 통해 수동 생성**:
-    1.  `MainActivity`에서 "테스트 페이지로 이동" 버튼을 클릭합니다.
-    2.  캘린더 이벤트를 선택하고 현재 위치 및 예상 이동 시간을 가져옵니다.
-    3.  "여행 추적 시작" 버튼을 클릭하여 이동을 시뮬레이션하고 목적지에 도착하면 `실제 이동 시간`이 자동 계산됩니다.
-    4.  **"Firebase에 이동 기록 저장" 버튼을 클릭**하여 이 `TravelLog` 데이터를 Firebase에 저장합니다. (현재 `TestPageActivity`에서 직접 `NotificationRecord`를 저장하는 기능은 없지만, `RouteCalculationWorker`의 로직은 `TravelLog` 생성이 아닌 `NotificationRecord` 생성을 포함합니다.)
-
-**중요**: 현재 `RouteCalculationWorker`가 주기적으로 실행되어 알림을 예약하고 `NotificationRecord`를 Firebase에 저장하는 로직이 있습니다. 실제 알림이 예약되어야 `NotificationRecord`가 Firebase에 쌓일 것입니다.
+*   **Python 모델 통합**: Colab에서 훈련된 Python 모델(`eta_ratio_model.pkl`)을 Android 앱에서 사용하기 위해서는 다음과 같은 추가 작업이 필요합니다.
+    *   **옵션 1 (온디바이스)**: 모델을 TensorFlow Lite(TFLite)와 같은 모바일 친화적인 형식으로 변환하여 앱에 직접 통합하고, `RouteCalculationWorker` 내에서 이 모델을 실행하여 `predictedActualTravelTimeMinutes`를 계산합니다.
+    *   **옵션 2 (백엔드 서버)**: 훈련된 모델을 클라우드(예: Google Cloud AI Platform)에 배포하고, 앱에서 API 호출을 통해 예측 결과를 받아와 `predictedActualTravelTimeMinutes`로 활용합니다. 현재 `RouteCalculationWorker.kt`의 플레이스홀더 로직을 실제 모델 추론 결과로 대체해야 합니다.
+*   **사용자 행동 패턴 (`userPattern`) 통합**: 현재 `NotificationBuilder`의 `userPattern`은 "과거 패턴 정보가 있을 경우 여기에 추가"라는 플레이스홀더로 되어 있습니다. 실제 사용자 행동 패턴 데이터를 분석하여 이 값을 동적으로 생성하고 알림 메시지 생성에 반영하는 추가 로직이 필요합니다.
 
 이것으로 사용자님의 모든 요청과 보고된 오류에 대한 수정 및 기능 구현이 완료되었습니다. 추가적인 질문이나 변경 사항이 있으시면 언제든지 말씀해 주세요.

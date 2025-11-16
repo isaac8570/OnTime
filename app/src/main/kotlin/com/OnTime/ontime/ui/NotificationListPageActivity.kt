@@ -54,7 +54,7 @@ fun NotificationListScreen(notificationRepository: NotificationRepository) {
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(Unit) {
+    val refreshNotifications: suspend () -> Unit = {
         isLoading = true
         try {
             notificationRecords = notificationRepository.getNotificationRecords()
@@ -64,6 +64,10 @@ fun NotificationListScreen(notificationRepository: NotificationRepository) {
         } finally {
             isLoading = false
         }
+    }
+
+    LaunchedEffect(Unit) {
+        refreshNotifications()
     }
 
     Scaffold(

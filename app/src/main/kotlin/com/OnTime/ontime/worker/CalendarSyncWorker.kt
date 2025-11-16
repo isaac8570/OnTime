@@ -5,7 +5,7 @@ import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.LocationRepository
-import com.OnTime.ontime.data.repositories.TravelLogRepository
+import com.OnTime.ontime.data.repositories.TravelDataRepository // Corrected import
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.manager.TravelMonitorManager
 import com.OnTime.ontime.util.LocationConverter
@@ -24,14 +24,16 @@ class CalendarSyncWorker(
             val weatherRepository = WeatherRepository() // Instantiate WeatherRepository
             val locationRepository = LocationRepository(applicationContext) // Instantiate LocationRepository
             val calendarRepository = CalendarRepository(applicationContext)
-            val travelLogRepository = TravelLogRepository(firestore) // Instantiate TravelLogRepository
+            // val travelLogRepository = TravelLogRepository(firestore) // Original - REMOVED
+            val travelDataRepository = TravelDataRepository() // Corrected instantiation
 
             val travelMonitorManager = TravelMonitorManager.getInstance(
                 applicationContext,
                 calendarRepository,
                 locationRepository,
                 weatherRepository,
-                travelLogRepository
+                // travelLogRepository // Original - REMOVED
+                travelDataRepository // Corrected
             )
 
             // ★★★ [수정] getEvents() 호출 시 불필요한 인자를 제거합니다. ★★★
