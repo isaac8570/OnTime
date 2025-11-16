@@ -44,6 +44,7 @@ import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
+import com.OnTime.ontime.ui.viewmodel.MainViewModel
 import com.OnTime.ontime.util.Constants
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -53,7 +54,8 @@ import com.google.android.gms.location.LocationRequest
 import com.google.android.gms.location.LocationResult
 import com.google.android.gms.location.LocationServices
 import java.text.SimpleDateFormat
-import java.util.*
+import java.util.Date
+import java.util.Locale
 
 class MainActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -71,17 +73,33 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             OnTimeTheme {
-                val factory = object : ViewModelProvider.Factory {
+                val calendarFactory = object : ViewModelProvider.Factory {
                     override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
+                        if (modelClass.isAssignableFrom(CalendarViewModel::class.java)) {
+                            @Suppress("UNCHECKED_CAST")
+                            return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
+                        }
+                        throw IllegalArgumentException("Unknown ViewModel class")
                     }
                 }
-                val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
+                val mainFactory = object : ViewModelProvider.Factory {
+                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                        if (modelClass.isAssignableFrom(MainViewModel::class.java)) {
+                            @Suppress("UNCHECKED_CAST")
+                            return MainViewModel(application, WeatherRepository(), com.OnTime.ontime.service.LocationService(application)) as T
+                        }
+                        throw IllegalArgumentException("Unknown ViewModel class")
+                    }
+                }
+                val calendarViewModel: CalendarViewModel = viewModel(factory = calendarFactory)
+                val mainViewModel: MainViewModel = viewModel(factory = mainFactory)
+
                 MainScreen(
                     onSettingsClick = {
                         startActivity(Intent(this, SettingsActivity::class.java))
                     },
-                    calendarViewModel = calendarViewModel
+                    calendarViewModel = calendarViewModel,
+                    mainViewModel = mainViewModel
                 )
             }
         }
@@ -116,7 +134,11 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel) {
+fun MainScreen(
+    onSettingsClick: () -> Unit,
+    calendarViewModel: CalendarViewModel,
+    mainViewModel: MainViewModel
+) {
     val context = LocalContext.current
     val permissions = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -140,7 +162,10 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
-    val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
+    val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
+    val notificationMessage by mainViewModel.notificationMessage.observeAsState()
+    val weatherStatus by mainViewModel.weatherStatus.observeAsState()
+    val isLoadingMessage by mainViewModel.isLoading.observeAsState(initial = false)
 
     Scaffold(
         topBar = {
@@ -186,21 +211,82 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (events.isEmpty()) {
-                EmptyState(Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    items(events) { event ->
-                        ModernEventCard(event)
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)) {
+
+            // Section for Weather and ETA logic
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Card for Weather Check
+                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isLoadingMessage && weatherStatus == null) {
+                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
+                        } else {
+                            Text(
+                                text = weatherStatus ?: "버튼을 눌러 현재 날씨를 확인하세요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        Button(onClick = { mainViewModel.checkCurrentWeather() }) {
+                            Text("날씨 확인하기")
+                        }
+                    }
+                }
+
+                // Card for ETA Notification
+                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isLoadingMessage && notificationMessage == null) {
+                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
+                        } else {
+                            Text(
+                                text = notificationMessage ?: "버튼을 눌러 예상 시간을 확인하세요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        Button(onClick = { mainViewModel.generateRealtimeNotificationMessage() }) {
+                            Text("예상 시간 확인하기 (실시간)")
+                        }
+                    }
+                }
+            }
+
+
+            // Existing UI for calendar events
+            Box(modifier = Modifier.weight(1f)) {
+                if (isLoadingEvents) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (events.isEmpty()) {
+                    EmptyState(Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(events) { event ->
+                            ModernEventCard(event)
+                        }
                     }
                 }
             }
