@@ -1,30 +1,46 @@
 package com.OnTime.ontime.ui.viewmodel
 
 import android.app.Application
-import android.Manifest // Add this import
-import android.content.pm.PackageManager // Add this import
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
+import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
+import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.WeatherRepository
-import com.OnTime.ontime.data.repositories.LocationRepository // Add this import
+import com.OnTime.ontime.data.repositories.LocationRepository
+import com.OnTime.ontime.data.repositories.CalendarRepository // Import CalendarRepository
+import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.service.ILocationService
+import com.OnTime.ontime.util.Constants
 import com.OnTime.ontime.util.LocationConverter
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+import java.time.LocalTime
+import java.time.Instant
+import java.time.ZoneId
 import kotlin.math.roundToInt
+import kotlin.random.Random
 
 class MainViewModel(
     application: Application,
     private val weatherRepository: WeatherRepository,
     private val locationService: ILocationService,
-    private val locationRepository: LocationRepository // Add LocationRepository
+    private val locationRepository: LocationRepository,
+    private val calendarRepository: CalendarRepository, // Add CalendarRepository
+    private val notificationBuilder: NotificationBuilder, // Add NotificationBuilder
+    private val settingsRepository: SettingsRepository // Add SettingsRepository
 ) : AndroidViewModel(application) {
 
-    private val _notificationMessage = MutableLiveData<String>()
-    val notificationMessage: LiveData<String> = _notificationMessage
+    // private val _notificationMessage = MutableLiveData<String>() // Removed, replaced by preDepartureNotificationMessage
+    // val notificationMessage: LiveData<String> = _notificationMessage
+
+    private val _preDepartureNotificationMessage = MutableLiveData<String>()
+    val preDepartureNotificationMessage: LiveData<String> = _preDepartureNotificationMessage
 
     private val _weatherStatus = MutableLiveData<String>()
     val weatherStatus: LiveData<String> = _weatherStatus
@@ -49,40 +65,76 @@ class MainViewModel(
     }
 
     /**
-     * 실시간 위치 및 날씨 데이터를 기반으로 알림 메시지를 생성합니다.
+     * 다음 예정된 이벤트를 기반으로 출발 전 맞춤 알림 메시지를 생성합니다.
      */
-    fun generateRealtimeNotificationMessage() {
+    fun generatePreDepartureNotification() {
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                val location = locationRepository.getCurrentLocation() ?: run { // Use locationRepository
-                    _notificationMessage.value = "현재 위치를 가져올 수 없습니다. 위치 권한을 확인해주세요."
+                // 1. 다음 예정된 이벤트 가져오기
+                val upcomingEvents = calendarRepository.getEvents()
+                val nextEvent = upcomingEvents.firstOrNull { it.startTime > System.currentTimeMillis() } // 가장 가까운 미래 이벤트
+
+                if (nextEvent == null || nextEvent.location.isNullOrBlank()) {
+                    _preDepartureNotificationMessage.postValue("다음 예정된 이벤트가 없거나 위치 정보가 없습니다.")
                     _isLoading.value = false
                     return@launch
                 }
 
-                val gridCoords = LocationConverter.latLngToKmaGrid(location.latitude, location.longitude) ?: run {
-                    _notificationMessage.value = "위치 좌표를 변환할 수 없습니다."
+                // 2. 현재 위치 가져오기
+                val currentLocation = locationRepository.getCurrentLocation()
+                if (currentLocation == null) {
+                    _preDepartureNotificationMessage.postValue("현재 위치를 가져올 수 없습니다. 위치 권한을 확인해주세요.")
+                    _isLoading.value = false
+                    return@launch
+                }
+                val originLatLng = Pair(currentLocation.latitude, currentLocation.longitude)
+
+                // 3. 목적지 좌표 변환
+                val destinationLatLng = LocationConverter.addressToLatLng(getApplication(), nextEvent.location!!)
+                if (destinationLatLng == null) {
+                    _preDepartureNotificationMessage.postValue("목적지 주소 변환에 실패했습니다.")
                     _isLoading.value = false
                     return@launch
                 }
 
-                val weatherItems = weatherRepository.getShortTermForecast(gridCoords.first, gridCoords.second)
-                val ptyItem = weatherItems.find { it.category == "PTY" }?.fcstValue
-                val weatherCondition = when (ptyItem) {
-                    "1", "2", "4" -> "rain"
-                    "3" -> "snow"
-                    else -> "clear"
+                // 4. 예상 이동 시간 (Google Maps ETA) 계산
+                val travelInfo = locationRepository.calculateTravelTime(originLatLng, destinationLatLng)
+                val estimatedTravelTimeMinutes = travelInfo?.durationMinutes
+                if (estimatedTravelTimeMinutes == null) {
+                    _preDepartureNotificationMessage.postValue("예상 이동 시간 계산에 실패했습니다.")
+                    _isLoading.value = false
+                    return@launch
                 }
 
-                val personalizedEta = 25.5
-                val googleEta = 20.0
-                generateMessage(weatherCondition, personalizedEta, googleEta)
+                // 5. 날씨 정보 가져오기 (목적지 기준)
+                val gridCoords = LocationConverter.latLngToKmaGrid(destinationLatLng.first, destinationLatLng.second)
+                val weatherInfo = weatherRepository.getWeatherCondition(gridCoords)
+
+                // 6. 모델 예측 실제 이동 시간 시뮬레이션 (플레이스홀더)
+                val predictedRatio = 1.0 + (Random.nextDouble(-0.1, 0.1)) // -10% ~ +10%
+                val predictedActualTravelTimeMinutes = (estimatedTravelTimeMinutes * predictedRatio).toInt()
+
+                // 7. 사용자 환경설정 가져오기
+                val userPreferences = settingsRepository.getUserPreferences()
+
+                // 8. Gemini API를 통해 알림 메시지 생성
+                val generatedMessage = notificationBuilder.generateNotificationMessage(
+                    userPreferences = userPreferences,
+                    eventName = nextEvent.title,
+                    eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(nextEvent.startTime), ZoneId.systemDefault()),
+                    travelTime = estimatedTravelTimeMinutes,
+                    actualTravelTime = predictedActualTravelTimeMinutes,
+                    weatherInfo = weatherInfo,
+                    userPattern = null // TODO: 실제 사용자 패턴 데이터 통합
+                )
+
+                _preDepartureNotificationMessage.postValue(generatedMessage ?: "알림 메시지 생성에 실패했습니다.")
 
             } catch (e: Exception) {
-                _notificationMessage.value = "오류가 발생했습니다: ${e.message}"
+                _preDepartureNotificationMessage.postValue("알림 생성 중 오류 발생: ${e.message}")
             } finally {
-                _isLoading.value = false
+                _isLoading.postValue(false)
             }
         }
     }
@@ -142,30 +194,5 @@ class MainViewModel(
                 _isLoading.value = false
             }
         }
-    }
-
-
-    private fun generateMessage(weatherCondition: String, personalizedEta: Double, googleEta: Double) {
-        val etaDifference = personalizedEta - googleEta
-
-        val weatherText = when (weatherCondition) {
-            "rain" -> "비가 오는 날씨입니다."
-            "snow" -> "눈이 오는 날씨입니다."
-            else -> "날씨가 맑습니다."
-        }
-
-        val message = when {
-            weatherCondition == "rain" && etaDifference > 5 ->
-                "☔️ $weatherText 평소보다 늦어요! ${personalizedEta.roundToInt()}분 예상됩니다."
-            weatherCondition == "snow" && etaDifference > 5 ->
-                "☃️ $weatherText 평소보다 늦어요! ${personalizedEta.roundToInt()}분 예상됩니다."
-            etaDifference > 10 ->
-                "🚗 교통량이 많네요. ${personalizedEta.roundToInt()}분 예상됩니다."
-            etaDifference < -5 ->
-                "🚀 길이 한산해서 평소보다 일찍 도착해요! ${personalizedEta.roundToInt()}분 예상됩니다."
-            else ->
-                "✅ $weatherText 평소와 비슷하게 ${googleEta.roundToInt()}분 걸려요."
-        }
-        _notificationMessage.postValue(message)
     }
 }

@@ -5,6 +5,7 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -40,16 +41,17 @@ import androidx.work.ExistingPeriodicWorkPolicy
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import com.OnTime.ontime.DataCollectionActivity
+import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.LocationRepository
+import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.service.AndroidLocationService
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import com.OnTime.ontime.ui.viewmodel.MainViewModel
 import com.OnTime.ontime.ui.viewmodel.ViewModelFactory
-// ✅ 이 줄이 추가되었습니다!
 import com.OnTime.ontime.util.LocationConverter
 import com.OnTime.ontime.worker.CalendarSyncWorker
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -66,13 +68,17 @@ class MainActivity : ComponentActivity() {
         val weatherRepository = WeatherRepository()
         val locationRepository = LocationRepository(app)
         val androidLocationService = AndroidLocationService(app)
+        val notificationBuilder = NotificationBuilder() // Instantiate NotificationBuilder
+        val settingsRepository = SettingsRepository(app) // Instantiate SettingsRepository
 
         ViewModelFactory(
             application = app,
             calendarRepository = calendarRepository,
             weatherRepository = weatherRepository,
             locationRepository = locationRepository,
-            androidLocationService = androidLocationService
+            androidLocationService = androidLocationService,
+            notificationBuilder = notificationBuilder, // Pass to factory
+            settingsRepository = settingsRepository // Pass to factory
         )
     }
 
@@ -107,7 +113,6 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// 나머지 코드는 이전과 동일합니다.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainScreen(
@@ -135,13 +140,17 @@ fun MainScreen(
             launcher.launch(permissions)
         }
         calendarViewModel.loadEventsWithTravelTime()
+        mainViewModel.generatePreDepartureNotification() // Generate notification message on launch
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
-    val notificationMessage by mainViewModel.notificationMessage.observeAsState()
-    val weatherStatus by mainViewModel.weatherStatus.observeAsState()
+    // Removed old notificationMessage and weatherStatus from MainViewModel
+    // val notificationMessage by mainViewModel.notificationMessage.observeAsState()
+    val weatherStatus by mainViewModel.weatherStatus.observeAsState() // Still useful for general weather display
     val isLoadingMessage by mainViewModel.isLoading.observeAsState(initial = false)
+
+    val preDepartureNotificationMessage by mainViewModel.preDepartureNotificationMessage.observeAsState()
 
     Scaffold(
         topBar = {
@@ -153,14 +162,17 @@ fun MainScreen(
                     }
                 },
                 actions = {
-                    /* Removed NotificationHistoryActivity navigation
+                    // Personalized pre-departure notification icon
                     IconButton(onClick = {
-                        val intent = Intent(context, NotificationHistoryActivity::class.java)
-                        context.startActivity(intent)
+                        preDepartureNotificationMessage?.let { message ->
+                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                        } ?: run {
+                            Toast.makeText(context, "알림 메시지 생성 중...", Toast.LENGTH_SHORT).show()
+                            mainViewModel.generatePreDepartureNotification() // Try generating again
+                        }
                     }) {
-                        Icon(Icons.Outlined.Notifications, "알림 히스토리")
+                        Icon(Icons.Outlined.Notifications, "출발 알림")
                     }
-                    */
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
                     }
@@ -193,7 +205,7 @@ fun MainScreen(
             .fillMaxSize()
             .padding(padding)) {
 
-            // Section for Weather and ETA logic
+            // Section for Weather logic
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -223,6 +235,7 @@ fun MainScreen(
                     }
                 }
 
+                /* Removed ETA Notification Card - replaced by pre-departure notification
                 // Card for ETA Notification
                 Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
                     Column(
@@ -245,6 +258,7 @@ fun MainScreen(
                         }
                     }
                 }
+                */
 
                 // Button to launch DataCollectionActivity
                 Button(
