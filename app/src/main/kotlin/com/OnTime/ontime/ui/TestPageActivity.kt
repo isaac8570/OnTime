@@ -16,19 +16,24 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
+import com.OnTime.ontime.NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.models.TravelLog
+import com.OnTime.ontime.data.models.UserPreferences
 import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.LocationRepository
+import com.OnTime.ontime.data.repositories.SettingsRepository
 import com.OnTime.ontime.data.repositories.TravelDataRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
@@ -37,6 +42,9 @@ import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
+import java.time.LocalTime
+import java.time.ZoneId
+import java.time.Instant
 import java.util.Date
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -47,6 +55,8 @@ class TestPageActivity : ComponentActivity() {
     private lateinit var locationRepository: LocationRepository
     private lateinit var weatherRepository: WeatherRepository
     private lateinit var travelDataRepository: TravelDataRepository
+    private lateinit var notificationBuilder: NotificationBuilder // Declare NotificationBuilder
+    private lateinit var settingsRepository: SettingsRepository // Declare SettingsRepository
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -55,6 +65,8 @@ class TestPageActivity : ComponentActivity() {
         locationRepository = LocationRepository(application)
         weatherRepository = WeatherRepository()
         travelDataRepository = TravelDataRepository()
+        notificationBuilder = NotificationBuilder() // Initialize NotificationBuilder
+        settingsRepository = SettingsRepository(application) // Initialize SettingsRepository
 
         setContent {
             OnTimeTheme {
@@ -67,7 +79,9 @@ class TestPageActivity : ComponentActivity() {
                         calendarRepository = calendarRepository,
                         locationRepository = locationRepository,
                         weatherRepository = weatherRepository,
-                        travelDataRepository = travelDataRepository
+                        travelDataRepository = travelDataRepository,
+                        notificationBuilder = notificationBuilder, // Pass NotificationBuilder
+                        settingsRepository = settingsRepository // Pass SettingsRepository
                     )
                 }
             }
@@ -81,14 +95,16 @@ fun TestPageScreen(
     calendarRepository: CalendarRepository,
     locationRepository: LocationRepository,
     weatherRepository: WeatherRepository,
-    travelDataRepository: TravelDataRepository
+    travelDataRepository: TravelDataRepository,
+    notificationBuilder: NotificationBuilder, // Receive NotificationBuilder
+    settingsRepository: SettingsRepository // Receive SettingsRepository
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
     var currentLatitude by remember { mutableStateOf<Double?>(null) }
     var currentLongitude by remember { mutableStateOf<Double?>(null) }
-    var currentAddress by remember { mutableStateOf<String?>(null) } // State for current address
+    var currentAddress by remember { mutableStateOf<String?>(null) }
     var locationPermissionGranted by remember { mutableStateOf(false) }
 
     var calendarEvents by remember { mutableStateOf<List<CalendarEvent>>(emptyList()) }
@@ -105,10 +121,15 @@ fun TestPageScreen(
     // State for automatic actual travel time calculation
     var isTrackingTrip by remember { mutableStateOf(false) }
     var tripStartTime by remember { mutableStateOf<Long?>(null) }
-    var initialTrackingLocation by remember { mutableStateOf<Location?>(null) } // Store initial location for departure detection
+    var initialTrackingLocation by remember { mutableStateOf<Location?>(null) }
     var actualCalculatedTravelTimeMinutes by remember { mutableStateOf<Int?>(null) }
     var distanceToDestination by remember { mutableStateOf<Float?>(null) }
-    var distanceMovedFromOrigin by remember { mutableStateOf<Float?>(null) } // Distance moved from initial tracking location
+    var distanceMovedFromOrigin by remember { mutableStateOf<Float?>(null) }
+
+    // States for personalized notification testing
+    var generatedTestMessage by remember { mutableStateOf("버튼을 눌러 맞춤 알림을 생성하세요.") }
+    var isGeneratingTestMessage by remember { mutableStateOf(false) }
+
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -123,7 +144,7 @@ fun TestPageScreen(
                 currentLongitude = location?.longitude
                 if (location != null) {
                     originLatLng = Pair(location.latitude, location.longitude)
-                    coroutineScope.launch { // Resolve address
+                    coroutineScope.launch {
                         currentAddress = LocationConverter.latLngToAddress(context, location.latitude, location.longitude)
                     }
                 }
@@ -172,7 +193,7 @@ fun TestPageScreen(
                     currentLongitude = location?.longitude
                     if (location != null) {
                         originLatLng = Pair(location.latitude, location.longitude)
-                        coroutineScope.launch { // Resolve address
+                        coroutineScope.launch {
                             currentAddress = LocationConverter.latLngToAddress(context, location.latitude, location.longitude)
                         }
                     }
@@ -191,7 +212,7 @@ fun TestPageScreen(
         if (originLatLng != null && destinationAddress != null && destinationAddress.isNotBlank()) {
             coroutineScope.launch {
                 val resolvedDestinationLatLng = LocationConverter.addressToLatLng(context, destinationAddress)
-                destinationLatLng = resolvedDestinationLatLng // Store resolved destination LatLng
+                destinationLatLng = resolvedDestinationLatLng
                 if (resolvedDestinationLatLng != null) {
                     val travelInfo = locationRepository.calculateTravelTime(originLatLng!!, resolvedDestinationLatLng)
                     estimatedTravelTime = travelInfo?.durationText ?: "정보 없음"
@@ -230,12 +251,12 @@ fun TestPageScreen(
                 latitude = destinationLatLng!!.first
                 longitude = destinationLatLng!!.second
             }
-            distanceToDestination = currentLoc.distanceTo(destLoc) // Distance in meters
+            distanceToDestination = currentLoc.distanceTo(destLoc)
 
             // Departure Detection
             if (tripStartTime == null && initialTrackingLocation != null) {
                 distanceMovedFromOrigin = currentLoc.distanceTo(initialTrackingLocation!!)
-                if (distanceMovedFromOrigin != null && distanceMovedFromOrigin!! > 50) { // Moved more than 50 meters
+                if (distanceMovedFromOrigin != null && distanceMovedFromOrigin!! > 50) {
                     tripStartTime = System.currentTimeMillis()
                     Toast.makeText(context, "출발 감지! 실제 이동 시간 측정 시작.", Toast.LENGTH_SHORT).show()
                 }
@@ -246,9 +267,9 @@ fun TestPageScreen(
                 val elapsedTimeMillis = System.currentTimeMillis() - tripStartTime!!
                 actualCalculatedTravelTimeMinutes = (elapsedTimeMillis.toDouble() / (1000 * 60)).roundToInt()
                 Toast.makeText(context, "목적지에 도착했습니다! 실제 이동 시간: ${actualCalculatedTravelTimeMinutes}분", Toast.LENGTH_LONG).show()
-                isTrackingTrip = false // Stop tracking on arrival
+                isTrackingTrip = false
                 tripStartTime = null
-                initialTrackingLocation = null // Reset
+                initialTrackingLocation = null
             }
         }
     }
@@ -267,7 +288,7 @@ fun TestPageScreen(
         if (locationPermissionGranted) {
             Text("위도: ${currentLatitude ?: "정보 없음"}")
             Text("경도: ${currentLongitude ?: "정보 없음"}")
-            Text("주소: ${currentAddress ?: "주소 확인 중..."}") // Display current address
+            Text("주소: ${currentAddress ?: "주소 확인 중..."}")
         } else {
             Text("위치 권한이 허용되지 않았습니다.")
             Button(onClick = {
@@ -295,7 +316,7 @@ fun TestPageScreen(
                 LazyColumn(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(max = 200.dp) // Limit height to avoid overflowing
+                        .heightIn(max = 200.dp)
                 ) {
                     items(calendarEvents) { event ->
                         Card(
@@ -365,7 +386,7 @@ fun TestPageScreen(
                         return@Button
                     }
                     isTrackingTrip = true
-                    tripStartTime = null // Will be set upon departure detection
+                    tripStartTime = null
                     initialTrackingLocation = Location("initial").apply {
                         latitude = currentLatitude!!
                         longitude = currentLongitude!!
@@ -402,6 +423,107 @@ fun TestPageScreen(
             }
         } else {
             Text("자동 계산된 시간: ${actualCalculatedTravelTimeMinutes ?: "정보 없음"}분")
+        }
+        Spacer(modifier = Modifier.height(16.dp))
+        HorizontalDivider()
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Personalized Notification Test Section
+        Text("개인 맞춤 알림 테스트:", style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            Button(
+                onClick = {
+                    if (selectedEvent == null || estimatedTravelTimeMinutes == null || currentWeather == "정보 없음") {
+                        Toast.makeText(context, "이벤트를 선택하고 예상 이동 시간, 날씨를 가져와야 합니다.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isGeneratingTestMessage = true
+                    coroutineScope.launch {
+                        val userPreferences = settingsRepository.getUserPreferences()
+                        val message = notificationBuilder.generateNotificationMessage(
+                            userPreferences = userPreferences,
+                            eventName = selectedEvent!!.title,
+                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                            travelTime = estimatedTravelTimeMinutes!!,
+                            actualTravelTime = estimatedTravelTimeMinutes!! + 5, // 5분 지각 시뮬레이션
+                            weatherInfo = currentWeather,
+                            userPattern = null
+                        )
+                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        isGeneratingTestMessage = false
+                    }
+                },
+                enabled = !isGeneratingTestMessage && selectedEvent != null && estimatedTravelTimeMinutes != null && currentWeather != "정보 없음"
+            ) {
+                Text("5분 지각 시뮬레이션")
+            }
+            Button(
+                onClick = {
+                    if (selectedEvent == null || estimatedTravelTimeMinutes == null || currentWeather == "정보 없음") {
+                        Toast.makeText(context, "이벤트를 선택하고 예상 이동 시간, 날씨를 가져와야 합니다.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isGeneratingTestMessage = true
+                    coroutineScope.launch {
+                        val userPreferences = settingsRepository.getUserPreferences()
+                        val message = notificationBuilder.generateNotificationMessage(
+                            userPreferences = userPreferences,
+                            eventName = selectedEvent!!.title,
+                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                            travelTime = estimatedTravelTimeMinutes!!,
+                            actualTravelTime = estimatedTravelTimeMinutes!! - 5, // 5분 일찍 도착 시뮬레이션
+                            weatherInfo = currentWeather,
+                            userPattern = null
+                        )
+                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        isGeneratingTestMessage = false
+                    }
+                },
+                enabled = !isGeneratingTestMessage && selectedEvent != null && estimatedTravelTimeMinutes != null && currentWeather != "정보 없음"
+            ) {
+                Text("5분 일찍 도착 시뮬레이션")
+            }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            Button(
+                onClick = {
+                    if (selectedEvent == null || estimatedTravelTimeMinutes == null || currentWeather == "정보 없음") {
+                        Toast.makeText(context, "이벤트를 선택하고 예상 이동 시간, 날씨를 가져와야 합니다.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isGeneratingTestMessage = true
+                    coroutineScope.launch {
+                        val userPreferences = settingsRepository.getUserPreferences()
+                        val message = notificationBuilder.generateNotificationMessage(
+                            userPreferences = userPreferences,
+                            eventName = selectedEvent!!.title,
+                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                            travelTime = estimatedTravelTimeMinutes!!,
+                            actualTravelTime = estimatedTravelTimeMinutes!!, // 정시 도착 시뮬레이션
+                            weatherInfo = currentWeather,
+                            userPattern = null
+                        )
+                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        isGeneratingTestMessage = false
+                    }
+                },
+                enabled = !isGeneratingTestMessage && selectedEvent != null && estimatedTravelTimeMinutes != null && currentWeather != "정보 없음"
+            ) {
+                Text("정시 도착 시뮬레이션")
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+        if (isGeneratingTestMessage) {
+            CircularProgressIndicator(modifier = Modifier.align(Alignment.CenterHorizontally))
+        } else {
+            Text(text = generatedTestMessage, modifier = Modifier.padding(top = 8.dp))
         }
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
