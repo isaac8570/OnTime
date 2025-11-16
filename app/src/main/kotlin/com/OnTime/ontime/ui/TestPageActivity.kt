@@ -14,18 +14,15 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import com.OnTime.ontime.data.models.CalendarEvent
@@ -42,6 +39,7 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlin.math.roundToInt
 
 class TestPageActivity : ComponentActivity() {
     private lateinit var fusedLocationClient: FusedLocationProviderClient
@@ -100,12 +98,16 @@ fun TestPageScreen(
     var estimatedTravelTimeMinutes by remember { mutableStateOf<Int?>(null) }
     var currentWeather by remember { mutableStateOf<String>("정보 없음") }
 
-    var actualTravelTimeInput by remember { mutableStateOf("") }
-    val actualTravelTimeMinutes = actualTravelTimeInput.toIntOrNull()
-
     var originLatLng by remember { mutableStateOf<Pair<Double, Double>?>(null) }
     var destinationLatLng by remember { mutableStateOf<Pair<Double, Double>?>(null) }
 
+    // State for automatic actual travel time calculation
+    var isTrackingTrip by remember { mutableStateOf(false) }
+    var tripStartTime by remember { mutableStateOf<Long?>(null) }
+    var initialTrackingLocation by remember { mutableStateOf<Location?>(null) } // Store initial location for departure detection
+    var actualCalculatedTravelTimeMinutes by remember { mutableStateOf<Int?>(null) }
+    var distanceToDestination by remember { mutableStateOf<Float?>(null) }
+    var distanceMovedFromOrigin by remember { mutableStateOf<Float?>(null) } // Distance moved from initial tracking location
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -210,6 +212,40 @@ fun TestPageScreen(
         }
     }
 
+    // Effect for real-time location tracking, departure detection, and arrival detection
+    LaunchedEffect(isTrackingTrip, currentLatitude, currentLongitude, initialTrackingLocation, destinationLatLng) {
+        if (isTrackingTrip && currentLatitude != null && currentLongitude != null && destinationLatLng != null) {
+            val currentLoc = Location("current").apply {
+                latitude = currentLatitude!!
+                longitude = currentLongitude!!
+            }
+            val destLoc = Location("destination").apply {
+                latitude = destinationLatLng!!.first
+                longitude = destinationLatLng!!.second
+            }
+            distanceToDestination = currentLoc.distanceTo(destLoc) // Distance in meters
+
+            // Departure Detection
+            if (tripStartTime == null && initialTrackingLocation != null) {
+                distanceMovedFromOrigin = currentLoc.distanceTo(initialTrackingLocation!!)
+                if (distanceMovedFromOrigin != null && distanceMovedFromOrigin!! > 50) { // Moved more than 50 meters
+                    tripStartTime = System.currentTimeMillis()
+                    Toast.makeText(context, "출발 감지! 실제 이동 시간 측정 시작.", Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            // Arrival Detection (only if tripStartTime is set)
+            if (tripStartTime != null && distanceToDestination != null && distanceToDestination!! < 50) {
+                val elapsedTimeMillis = System.currentTimeMillis() - tripStartTime!!
+                actualCalculatedTravelTimeMinutes = (elapsedTimeMillis.toDouble() / (1000 * 60)).roundToInt()
+                Toast.makeText(context, "목적지에 도착했습니다! 실제 이동 시간: ${actualCalculatedTravelTimeMinutes}분", Toast.LENGTH_LONG).show()
+                isTrackingTrip = false // Stop tracking on arrival
+                tripStartTime = null
+                initialTrackingLocation = null // Reset
+            }
+        }
+    }
+
 
     Column(
         modifier = Modifier
@@ -308,28 +344,67 @@ fun TestPageScreen(
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
-        // Actual Travel Time Input Section
-        Text("실제 이동 시간 (분):", style = MaterialTheme.typography.titleMedium)
-        OutlinedTextField(
-            value = actualTravelTimeInput,
-            onValueChange = { newValue ->
-                actualTravelTimeInput = newValue.filter { it.isDigit() }
-            },
-            label = { Text("실제 이동 시간 입력") },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth()
-        )
-        Text("입력 값: ${actualTravelTimeMinutes ?: "정보 없음"}", style = MaterialTheme.typography.bodySmall)
+        // Actual Travel Time Tracking Section
+        Text("실제 이동 시간 (자동 계산):", style = MaterialTheme.typography.titleMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceAround
+        ) {
+            Button(
+                onClick = {
+                    if (originLatLng == null || destinationLatLng == null || selectedEvent == null || currentLatitude == null || currentLongitude == null) {
+                        Toast.makeText(context, "현재 위치와 목적지(이벤트)를 선택해주세요.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    isTrackingTrip = true
+                    tripStartTime = null // Will be set upon departure detection
+                    initialTrackingLocation = Location("initial").apply {
+                        latitude = currentLatitude!!
+                        longitude = currentLongitude!!
+                    }
+                    actualCalculatedTravelTimeMinutes = null
+                    Toast.makeText(context, "여행 추적 시작! 출발 감지 대기 중...", Toast.LENGTH_SHORT).show()
+                },
+                enabled = !isTrackingTrip && originLatLng != null && destinationLatLng != null && selectedEvent != null
+            ) {
+                Text("여행 추적 시작")
+            }
+            Button(
+                onClick = {
+                    if (isTrackingTrip) {
+                        isTrackingTrip = false
+                        tripStartTime = null
+                        initialTrackingLocation = null
+                        Toast.makeText(context, "추적 중지됨.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "추적 중이 아닙니다.", Toast.LENGTH_SHORT).show()
+                    }
+                },
+                enabled = isTrackingTrip
+            ) {
+                Text("추적 중지")
+            }
+        }
+        if (isTrackingTrip) {
+            if (tripStartTime == null) {
+                Text("출발 감지 대기 중... (초기 위치에서 ${distanceMovedFromOrigin?.roundToInt() ?: "정보 없음"}m 이동)")
+            } else {
+                val elapsedTime = (System.currentTimeMillis() - tripStartTime!!) / (1000 * 60)
+                Text("추적 중... 경과 시간: ${elapsedTime}분, 목적지까지 ${distanceToDestination?.roundToInt() ?: "정보 없음"}m 남음")
+            }
+        } else {
+            Text("자동 계산된 시간: ${actualCalculatedTravelTimeMinutes ?: "정보 없음"}분")
+        }
         Spacer(modifier = Modifier.height(16.dp))
         HorizontalDivider()
         Spacer(modifier = Modifier.height(16.dp))
 
+
         // Save to Firebase Button
         Button(
             onClick = {
-                if (selectedEvent == null || originLatLng == null || destinationLatLng == null || actualTravelTimeMinutes == null || estimatedTravelTimeMinutes == null) {
-                    Toast.makeText(context, "모든 정보를 입력하고 이벤트를 선택해주세요.", Toast.LENGTH_SHORT).show()
+                if (selectedEvent == null || originLatLng == null || destinationLatLng == null || actualCalculatedTravelTimeMinutes == null || estimatedTravelTimeMinutes == null) {
+                    Toast.makeText(context, "모든 정보를 입력하고 이벤트를 선택한 후 실제 이동 시간을 계산해주세요.", Toast.LENGTH_SHORT).show()
                 } else {
                     coroutineScope.launch {
                         val eventDate = Date(selectedEvent!!.startTime)
@@ -341,11 +416,11 @@ fun TestPageScreen(
                             destinationLat = destinationLatLng!!.first,
                             destinationLng = destinationLatLng!!.second,
                             googleEtaMin = estimatedTravelTimeMinutes!!,
-                            actualEtaMin = actualTravelTimeMinutes,
+                            actualEtaMin = actualCalculatedTravelTimeMinutes!!,
                             weather = currentWeather,
                             hourOfDay = SimpleDateFormat("HH", Locale.getDefault()).format(eventDate).toInt(),
                             dayOfWeek = SimpleDateFormat("u", Locale.getDefault()).format(eventDate).toInt(), // 1 for Monday, 7 for Sunday
-                            distanceKm = 0.0, // This needs to be calculated from LocationRepository if available
+                            distanceKm = 0.0, // Placeholder for now. Needs calculation.
                             timestamp = Date()
                         )
                         try {
@@ -357,7 +432,8 @@ fun TestPageScreen(
                     }
                 }
             },
-            modifier = Modifier.fillMaxWidth()
+            modifier = Modifier.fillMaxWidth(),
+            enabled = actualCalculatedTravelTimeMinutes != null // Enable only after calculation
         ) {
             Text("Firebase에 이동 기록 저장")
         }
