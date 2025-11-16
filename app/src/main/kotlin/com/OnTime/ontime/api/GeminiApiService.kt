@@ -25,8 +25,10 @@ class GeminiApiService {
         weatherInfo: String? // Optional weather info
     ): String {
         val systemInstruction = when (userTone) {
-            NotificationTone.STRONG -> "당신은 절대 지각을 허용하지 않는 단호하고 엄격한 비서입니다. 경고하듯이 간결하고 단호한 어조로 말해야 합니다."
-            NotificationTone.SOFT -> "당신은 매우 친절하고 다정한 비서입니다. 사용자를 격려하고 응원하는 부드러운 어조로 말해야 합니다."
+            NotificationTone.FRIENDLY -> "당신은 친절하고 다정한 비서입니다. 사용자를 격려하고 응원하는 부드러운 어조로 말해야 합니다."
+            NotificationTone.FORMAL -> "당신은 격식 있고 명확한 비서입니다. 정중하고 객관적인 어조로 말해야 합니다."
+            NotificationTone.CONCISE -> "당신은 핵심만 간결하게 전달하는 비서입니다. 불필요한 수식 없이 직설적인 어조로 말해야 합니다."
+            NotificationTone.HUMOROUS -> "당신은 재치 있고 유머러스한 비서입니다. 상황에 맞는 가벼운 농담이나 재미있는 표현을 사용해야 합니다."
         }
 
         val weatherPrompt = weatherInfo?.let { "현재 날씨는 ${it}입니다." } ?: ""
@@ -54,8 +56,10 @@ class GeminiApiService {
 
     private fun getDefaultNotification(userTone: NotificationTone): String {
         return when (userTone) {
-            NotificationTone.STRONG -> "출발할 시간입니다. 즉시 이동하세요."
-            NotificationTone.SOFT -> "이제 슬슬 출발해볼까요? 좋은 하루 보내세요!"
+            NotificationTone.FRIENDLY -> "이제 슬슬 출발해볼까요? 좋은 하루 보내세요!"
+            NotificationTone.FORMAL -> "정시 출발을 위해 곧 이동해주시기 바랍니다."
+            NotificationTone.CONCISE -> "출발. 지금."
+            NotificationTone.HUMOROUS -> "지각하면 앙대요! 지금 출발하지 않으면 후회할지도...?"
         }
     }
 }
