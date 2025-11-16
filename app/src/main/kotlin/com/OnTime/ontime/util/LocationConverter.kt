@@ -4,6 +4,7 @@ import android.content.Context
 import android.location.Geocoder
 import java.io.IOException
 import kotlin.math.*
+import java.util.Locale
 
 object LocationConverter {
 
@@ -29,6 +30,26 @@ object LocationConverter {
         } catch (e: IOException) {
             Logger.e("Failed to convert address to coordinates", e)
             null
+        }
+    }
+
+    @Suppress("DEPRECATION")
+    fun latLngToAddress(context: Context, lat: Double, lng: Double): String {
+        val geocoder = Geocoder(context, Locale.KOREA)
+        return try {
+            val addresses = geocoder.getFromLocation(lat, lng, 1)
+            if (addresses != null && addresses.isNotEmpty()) {
+                val address = addresses[0]
+                // "서울특별시 중구" 와 같이 간략한 주소만 반환
+                listOfNotNull(address.adminArea, address.locality, address.subLocality)
+                    .joinToString(" ")
+                    .ifEmpty { address.getAddressLine(0) ?: "주소 정보 없음" }
+            } else {
+                "주소 정보 없음"
+            }
+        } catch (e: IOException) {
+            Logger.e("Failed to convert coordinates to address", e)
+            "주소 변환 실패"
         }
     }
 

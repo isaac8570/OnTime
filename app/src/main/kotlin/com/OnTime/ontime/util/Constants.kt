@@ -8,6 +8,7 @@ object Constants {
     const val GOOGLE_MAPS_API_KEY = BuildConfig.MAPS_API_KEY
 
     const val GEMINI_API_KEY = BuildConfig.GEMINI_API_KEY
+    const val WEATHER_API_KEY = BuildConfig.WEATHER_API_KEY
     
     // Transport Modes
     const val MODE_TRANSIT = "transit"

@@ -1,16 +1,16 @@
 package com.OnTime.ontime.ui
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Bundle
-import android.os.Looper
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -37,86 +37,89 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.lifecycle.ViewModelProvider
-import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import com.OnTime.ontime.DataCollectionActivity
+import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.LocationRepository
+import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
+import com.OnTime.ontime.service.AndroidLocationService
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
-import com.OnTime.ontime.util.Constants
+import com.OnTime.ontime.ui.viewmodel.MainViewModel
+import com.OnTime.ontime.ui.viewmodel.ViewModelFactory
+import com.OnTime.ontime.util.LocationConverter
+import com.OnTime.ontime.worker.CalendarSyncWorker
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.location.FusedLocationProviderClient
-import com.google.android.gms.location.LocationCallback
-import com.google.android.gms.location.LocationRequest
-import com.google.android.gms.location.LocationResult
-import com.google.android.gms.location.LocationServices
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.TimeUnit
 
 class MainActivity : ComponentActivity() {
-    private lateinit var fusedLocationClient: FusedLocationProviderClient
-    private lateinit var locationCallback: LocationCallback
+
+    private val factory: ViewModelFactory by lazy {
+        val app = application
+        val calendarRepository = CalendarRepository(app)
+        val weatherRepository = WeatherRepository()
+        val locationRepository = LocationRepository(app)
+        val androidLocationService = AndroidLocationService(app)
+        val notificationBuilder = NotificationBuilder() // Instantiate NotificationBuilder
+        val settingsRepository = SettingsRepository(app) // Instantiate SettingsRepository
+
+        ViewModelFactory(
+            application = app,
+            calendarRepository = calendarRepository,
+            weatherRepository = weatherRepository,
+            locationRepository = locationRepository,
+            androidLocationService = androidLocationService,
+            notificationBuilder = notificationBuilder, // Pass to factory
+            settingsRepository = settingsRepository // Pass to factory
+        )
+    }
+
+    private val calendarViewModel: CalendarViewModel by viewModels { factory }
+    private val mainViewModel: MainViewModel by viewModels { factory }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
-        locationCallback = object : LocationCallback() {
-            override fun onLocationResult(locationResult: LocationResult) {
-                // 위치 업데이트 처리
-            }
-        }
+        // Schedule CalendarSyncWorker
+        val calendarSyncRequest = PeriodicWorkRequestBuilder<CalendarSyncWorker>(
+            15, TimeUnit.MINUTES // Run every 15 minutes
+        ).build()
+
+        WorkManager.getInstance(applicationContext).enqueueUniquePeriodicWork(
+            "CalendarSyncWork",
+            ExistingPeriodicWorkPolicy.KEEP, // Keep existing work if already enqueued
+            calendarSyncRequest
+        )
 
         setContent {
             OnTimeTheme {
-                val factory = object : ViewModelProvider.Factory {
-                    override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
-                        return CalendarViewModel(application, CalendarRepository(), WeatherRepository()) as T
-                    }
-                }
-                val calendarViewModel: CalendarViewModel = viewModel(factory = factory)
                 MainScreen(
                     onSettingsClick = {
                         startActivity(Intent(this, SettingsActivity::class.java))
                     },
-                    calendarViewModel = calendarViewModel
+                    calendarViewModel = calendarViewModel,
+                    mainViewModel = mainViewModel
                 )
             }
         }
-    }
-
-    @SuppressLint("MissingPermission")
-    private fun startLocationUpdates() {
-        val locationRequest = LocationRequest.create().apply {
-            interval = 10000
-            fastestInterval = 5000
-            priority = LocationRequest.PRIORITY_HIGH_ACCURACY
-        }
-        fusedLocationClient.requestLocationUpdates(locationRequest, locationCallback, Looper.getMainLooper())
-    }
-
-    private fun stopLocationUpdates() {
-        fusedLocationClient.removeLocationUpdates(locationCallback)
-    }
-
-    override fun onResume() {
-        super.onResume()
-        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED) {
-            startLocationUpdates()
-        }
-    }
-
-    override fun onPause() {
-        super.onPause()
-        stopLocationUpdates()
     }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel) {
+fun MainScreen(
+    onSettingsClick: () -> Unit,
+    calendarViewModel: CalendarViewModel,
+    mainViewModel: MainViewModel
+) {
     val context = LocalContext.current
     val permissions = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
@@ -137,10 +140,17 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
             launcher.launch(permissions)
         }
         calendarViewModel.loadEventsWithTravelTime()
+        mainViewModel.generatePreDepartureNotification() // Generate notification message on launch
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
-    val isLoading by calendarViewModel.isLoading.observeAsState(initial = false)
+    val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
+    // Removed old notificationMessage and weatherStatus from MainViewModel
+    // val notificationMessage by mainViewModel.notificationMessage.observeAsState()
+    val weatherStatus by mainViewModel.weatherStatus.observeAsState() // Still useful for general weather display
+    val isLoadingMessage by mainViewModel.isLoading.observeAsState(initial = false)
+
+    val preDepartureNotificationMessage by mainViewModel.preDepartureNotificationMessage.observeAsState()
 
     Scaffold(
         topBar = {
@@ -152,11 +162,12 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
                     }
                 },
                 actions = {
+                    // Personalized pre-departure notification icon - now navigates to list page
                     IconButton(onClick = {
-                        val intent = Intent(context, NotificationHistoryActivity::class.java)
+                        val intent = Intent(context, NotificationListPageActivity::class.java)
                         context.startActivity(intent)
                     }) {
-                        Icon(Icons.Outlined.Notifications, "알림 히스토리")
+                        Icon(Icons.Outlined.Notifications, "알림 내역") // Changed contentDescription to "알림 내역"
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")
@@ -186,21 +197,106 @@ fun MainScreen(onSettingsClick: () -> Unit, calendarViewModel: CalendarViewModel
             }
         }
     ) { padding ->
-        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
-            if (isLoading) {
-                CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
-            } else if (events.isEmpty()) {
-                EmptyState(Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
+        Column(modifier = Modifier
+            .fillMaxSize()
+            .padding(padding)) {
+
+            // Section for Weather logic
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Card for Weather Check
+                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isLoadingMessage && weatherStatus == null) {
+                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
+                        } else {
+                            Text(
+                                text = weatherStatus ?: "버튼을 눌러 현재 날씨를 확인하세요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        Button(onClick = { mainViewModel.checkCurrentWeather() }) {
+                            Text("날씨 확인하기")
+                        }
+                    }
+                }
+
+                /* Removed ETA Notification Card - replaced by pre-departure notification
+                // Card for ETA Notification
+                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        if (isLoadingMessage && notificationMessage == null) {
+                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
+                        } else {
+                            Text(
+                                text = notificationMessage ?: "버튼을 눌러 예상 시간을 확인하세요.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                modifier = Modifier.padding(bottom = 8.dp)
+                            )
+                        }
+                        Button(onClick = { mainViewModel.generateRealtimeNotificationMessage() }) {
+                            Text("예상 시간 확인하기 (실시간)")
+                        }
+                    }
+                }
+                */
+
+                // Button to launch DataCollectionActivity
+                Button(
+                    onClick = {
+                        val intent = Intent(context, DataCollectionActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(events) { event ->
-                        ModernEventCard(event)
+                    Text("데이터 수집 페이지로 이동")
+                }
+
+                // Button to launch TestPageActivity
+                Button(
+                    onClick = {
+                        val intent = Intent(context, TestPageActivity::class.java)
+                        context.startActivity(intent)
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("테스트 페이지로 이동")
+                }
+            }
+
+
+            // Existing UI for calendar events
+            Box(modifier = Modifier.weight(1f)) {
+                if (isLoadingEvents) {
+                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                } else if (events.isEmpty()) {
+                    EmptyState(Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
+                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        items(events) { event ->
+                            ModernEventCard(event)
+                        }
                     }
                 }
             }

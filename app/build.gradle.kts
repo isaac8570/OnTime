@@ -25,8 +25,8 @@ android {
         }
         
         buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
-        buildConfigField("String", "KMA_WEATHER_API_KEY", "\"${properties.getProperty("KMA_WEATHER_API_KEY", "")}\"")
         buildConfigField("String", "MAPS_API_KEY", "\"${properties.getProperty("MAPS_API_KEY", "")}\"")
+        buildConfigField("String", "WEATHER_API_KEY", "\"${properties.getProperty("WEATHER_API_KEY", "")}\"")
     }
 
     buildFeatures {
@@ -109,9 +109,12 @@ dependencies {
     implementation("androidx.compose.ui:ui-tooling-preview")
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.activity:activity-compose:1.8.2")
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    implementation("androidx.compose.ui:ui-tooling")
     
     // Google GenAI SDK
     implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Lifecycle KTX for lifecycleScope
+    implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")
 }

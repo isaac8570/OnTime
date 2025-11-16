@@ -10,6 +10,7 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import com.OnTime.ontime.data.models.CalendarEvent
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.LocationRepository
 import com.OnTime.ontime.data.repositories.TravelTimeRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.util.Constants
@@ -18,28 +19,30 @@ import kotlinx.coroutines.launch
 class CalendarViewModel(
     application: Application,
     private val calendarRepository: CalendarRepository,
-    private val weatherRepository: WeatherRepository
+    private val weatherRepository: WeatherRepository,
+    private val locationRepository: LocationRepository
 ) : AndroidViewModel(application) {
-    
+
     private val _events = MutableLiveData<List<CalendarEvent>>()
     val events: LiveData<List<CalendarEvent>> = _events
-    
+
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
-    
+
     private val _travelMode = MutableLiveData<String>(Constants.MODE_TRANSIT)
     val travelMode: LiveData<String> = _travelMode
-    
-    private val travelTimeRepository = TravelTimeRepository(application)
+
+    private val travelTimeRepository = TravelTimeRepository(application, locationRepository)
     private val autoLearningService = com.OnTime.ontime.service.AutoLearningService(application)
-    
+
     fun loadEventsWithTravelTime() {
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                val events = calendarRepository.getEvents(getApplication())
+                // ★★★ [수정] getEvents() 호출 시 불필요한 인자를 제거합니다. ★★★
+                val events = calendarRepository.getEvents()
                 _events.postValue(events)
-                
+
                 // Calculate travel times for all events
                 calculateTravelTimesForEvents(events)
             } catch (e: Exception) {
@@ -49,18 +52,18 @@ class CalendarViewModel(
             }
         }
     }
-    
+
     private suspend fun calculateTravelTimesForEvents(events: List<CalendarEvent>) {
         val currentMode = _travelMode.value ?: Constants.MODE_TRANSIT
-        
+
         events.forEach { event ->
             try {
                 val travelInfo = travelTimeRepository.calculateTravelTimeForEvent(event, currentMode)
                 if (travelInfo != null) {
                     // 자동 학습 예약
                     autoLearningService.scheduleAutoLearning(event, travelInfo.durationText)
-                    
-                    val updatedEvents = _events.value?.map { 
+
+                    val updatedEvents = _events.value?.map {
                         if (it.id == event.id) {
                             it.copy(travelDuration = travelInfo.durationText)
                         } else it
@@ -72,7 +75,7 @@ class CalendarViewModel(
             }
         }
     }
-    
+
     fun setTravelMode(mode: String) {
         _travelMode.value = mode
         _events.value?.let { events ->
@@ -81,22 +84,22 @@ class CalendarViewModel(
             }
         }
     }
-    
+
     fun refreshEvents() {
         loadEventsWithTravelTime()
     }
-    
+
     fun testTravelCalculation() {
         viewModelScope.launch {
             try {
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
-                
+
                 // 1단계: 위치 권한 확인
                 val hasPermission = ContextCompat.checkSelfPermission(
-                    getApplication(), 
+                    getApplication(),
                     Manifest.permission.ACCESS_FINE_LOCATION
                 ) == PackageManager.PERMISSION_GRANTED
-                
+
                 if (!hasPermission) {
                     notificationManager.showDepartureNotification(
                         title = "테스트 실패",
@@ -105,36 +108,45 @@ class CalendarViewModel(
                     )
                     return@launch
                 }
-                
+
                 // 2단계: 현재 위치 확인
-                val locationService = com.OnTime.ontime.service.LocationService(getApplication())
-                val currentLocation = locationService.getCurrentLocation()
-                
+                val currentLocation = locationRepository.getCurrentLocation()
+
                 if (currentLocation == null) {
                     notificationManager.showDepartureNotification(
-                        title = "테스트 실패", 
+                        title = "테스트 실패",
                         message = "현재 위치를 가져올 수 없습니다",
                         eventId = "error_location"
                     )
                     return@launch
                 }
-                
+
                 // 3단계: 영문 주소로 테스트
                 val destination = "Hongik University Station, Seoul"
-                
+
                 notificationManager.showDepartureNotification(
                     title = "API 키 확인",
                     message = "API Key: ${Constants.GOOGLE_MAPS_API_KEY.take(10)}...",
                     eventId = "api_check"
                 )
-                
+
                 // 4단계: Google Maps API 호출
-                val travelInfo = locationService.calculateTravelTime(
-                    currentLocation = currentLocation,
-                    destinationAddress = destination,
+                val destinationLatLng = com.OnTime.ontime.util.LocationConverter.addressToLatLng(getApplication(), destination)
+                if (destinationLatLng == null) {
+                    notificationManager.showDepartureNotification(
+                        title = "테스트 실패",
+                        message = "목적지 주소 변환 실패",
+                        eventId = "error_geocode"
+                    )
+                    return@launch
+                }
+
+                val travelInfo = locationRepository.calculateTravelTime(
+                    originLatLng = Pair(currentLocation.latitude, currentLocation.longitude),
+                    destinationLatLng = destinationLatLng,
                     mode = Constants.MODE_TRANSIT
                 )
-                
+
                 if (travelInfo != null) {
                     notificationManager.showDepartureNotification(
                         title = "테스트 성공!",
@@ -148,7 +160,7 @@ class CalendarViewModel(
                         eventId = "error_api"
                     )
                 }
-                
+
             } catch (e: Exception) {
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
                 notificationManager.showDepartureNotification(
@@ -159,69 +171,60 @@ class CalendarViewModel(
             }
         }
     }
-    
+
     fun testRAGSystem() {
         viewModelScope.launch {
             try {
                 val ragService = com.OnTime.ontime.service.FirebaseRAGService()
                 val locationExtractor = com.OnTime.ontime.service.LocationExtractorService()
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
-                val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication())
-                
-                // 실제 캘린더 일정 가져오기
-                val realEvents = calendarRepository.getEvents(getApplication())
-                
+                // val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication()) // REMOVED
+
+                val realEvents = calendarRepository.getEvents()
+
                 if (realEvents.isNotEmpty()) {
-                    // 첫 번째 실제 일정으로 테스트
                     val firstEvent = realEvents.first()
-                    
-                    // 현재 위치 가져오기
-                    val locationService = com.OnTime.ontime.service.LocationService(getApplication())
-                    val currentLocation = locationService.getCurrentLocation()
+
+                    val currentLocation = locationRepository.getCurrentLocation()
                     val myLocationText = if (currentLocation != null) {
                         "위도: ${String.format("%.4f", currentLocation.latitude)}, 경도: ${String.format("%.4f", currentLocation.longitude)}"
                     } else {
                         "위치 정보 없음"
                     }
-                    
-                    // AI로 위치 추출
+
                     val extractedLocation = locationExtractor.extractLocationFromText(
                         eventTitle = firstEvent.title,
                         eventDescription = firstEvent.description
                     )
-                    
-                    // 위치가 추출되면 거리 계산
+
                     val travelTime = if (extractedLocation != null) {
-                        val travelTimeRepo = TravelTimeRepository(getApplication())
-                        val travelInfo = travelTimeRepo.calculateTravelTimeForEvent(
-                            event = firstEvent.copy(location = extractedLocation),
-                            transportMode = Constants.MODE_TRANSIT
-                        )
-                        travelInfo?.durationText ?: "계산 실패"
+                        val extractedLatLng = com.OnTime.ontime.util.LocationConverter.addressToLatLng(getApplication(), extractedLocation)
+                        if (extractedLatLng == null) {
+                            "위치 주소 변환 실패"
+                        } else if (currentLocation == null) {
+                            "현재 위치를 가져올 수 없습니다"
+                        } else {
+                            val travelInfo = locationRepository.calculateTravelTime(
+                                originLatLng = Pair(currentLocation.latitude, currentLocation.longitude),
+                                destinationLatLng = extractedLatLng,
+                                mode = Constants.MODE_TRANSIT
+                            )
+                            travelInfo?.durationText ?: "계산 실패"
+                        }
                     } else {
                         "위치 추출 실패"
                     }
-                    
+
                     val ragMessage = ragService.generateRAGNotification(
                         event = firstEvent.copy(location = extractedLocation),
                         travelTime = travelTime,
                         weatherCondition = "맑음"
                     )
-                    
+
                     val fullMessage = "일정: ${firstEvent.title}\n내 위치: $myLocationText\n목적지: ${extractedLocation ?: "없음"}\n이동시간: $travelTime\n알림: $ragMessage"
-                    
-                    // 히스토리에 저장
-                    historyService.saveNotification(
-                        title = "🧠 실제 일정 RAG 테스트",
-                        message = fullMessage,
-                        eventTitle = firstEvent.title,
-                        myLocation = myLocationText,
-                        extractedLocation = extractedLocation,
-                        travelTime = travelTime,
-                        ragMessage = ragMessage,
-                        type = "RAG"
-                    )
-                    
+
+                    // historyService.saveNotification(...) // REMOVED
+
                     notificationManager.showDepartureNotification(
                         title = "🧠 실제 일정 RAG 테스트",
                         message = fullMessage,
@@ -229,31 +232,23 @@ class CalendarViewModel(
                     )
                 } else {
                     val message = "캘린더에 일정이 없습니다. 일정을 추가해보세요!"
-                    
-                    historyService.saveNotification(
-                        title = "RAG 테스트",
-                        message = message,
-                        type = "ERROR"
-                    )
-                    
+
+                    // historyService.saveNotification(...) // REMOVED
+
                     notificationManager.showDepartureNotification(
                         title = "RAG 테스트",
                         message = message,
                         eventId = "no_events"
                     )
                 }
-                
+
             } catch (e: Exception) {
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
-                val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication())
+                // val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication()) // REMOVED
                 val errorMessage = "오류: ${e.message}"
-                
-                historyService.saveNotification(
-                    title = "RAG 오류",
-                    message = errorMessage,
-                    type = "ERROR"
-                )
-                
+
+                // historyService.saveNotification(...) // REMOVED
+
                 notificationManager.showDepartureNotification(
                     title = "RAG 오류",
                     message = errorMessage,

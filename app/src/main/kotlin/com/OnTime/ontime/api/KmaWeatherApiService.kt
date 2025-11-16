@@ -5,7 +5,7 @@ import retrofit2.http.GET
 import retrofit2.http.Query
 
 interface KmaWeatherApiService {
-    @GET("getVilageFcst")
+    @GET("1360000/VilageFcstInfoService_2.0/getVilageFcst")
     suspend fun getShortTermForecast(
         @Query("serviceKey") serviceKey: String,
         @Query("pageNo") pageNo: Int = 1,
