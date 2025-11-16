@@ -22,28 +22,27 @@ class NotificationScheduler(
 
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
-    fun scheduleNotification(
+    suspend fun scheduleNotification( // Changed to suspend and return String?
         event: CalendarEvent,
         departureTime: Long,
         estimatedTravelTimeMinutes: Int, // This is googleEtaMin
         predictedActualTravelTimeMinutes: Int?, // Predicted actual travel time from model/tracking
         weatherInfo: String // Add weatherInfo parameter
-    ) {
+    ): String? { // Return String?
+
         // Fetch user preferences
-        val userPreferences = runBlocking { settingsRepository.getUserPreferences() }
+        val userPreferences = settingsRepository.getUserPreferences() // Call directly, not runBlocking
 
         // Generate personalized message using NotificationBuilder
-        val notificationMessage = runBlocking {
-            notificationBuilder.generateNotificationMessage(
-                userPreferences = userPreferences,
-                eventName = event.title,
-                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(event.startTime), ZoneId.systemDefault()), // Convert Long to LocalTime
-                travelTime = estimatedTravelTimeMinutes,
-                actualTravelTime = predictedActualTravelTimeMinutes,
-                weatherInfo = weatherInfo, // Use the passed weatherInfo
-                userPattern = "과거 패턴 정보가 있을 경우 여기에 추가" // TODO: Integrate actual user pattern logic
-            )
-        }
+        val notificationMessage = notificationBuilder.generateNotificationMessage(
+            userPreferences = userPreferences,
+            eventName = event.title,
+            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(event.startTime), ZoneId.systemDefault()), // Convert Long to LocalTime
+            travelTime = estimatedTravelTimeMinutes,
+            actualTravelTime = predictedActualTravelTimeMinutes,
+            weatherInfo = weatherInfo, // Use the passed weatherInfo
+            userPattern = "과거 패턴 정보가 있을 경우 여기에 추가" // TODO: Integrate actual user pattern logic
+        )
 
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra("event_title", event.title)
@@ -89,6 +88,7 @@ class NotificationScheduler(
                 pendingIntent
             )
         }
+        return notificationMessage // Return the generated message
     }
 
     fun cancelNotification(eventId: String) {

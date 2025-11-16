@@ -162,16 +162,12 @@ fun MainScreen(
                     }
                 },
                 actions = {
-                    // Personalized pre-departure notification icon
+                    // Personalized pre-departure notification icon - now navigates to list page
                     IconButton(onClick = {
-                        preDepartureNotificationMessage?.let { message ->
-                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
-                        } ?: run {
-                            Toast.makeText(context, "알림 메시지 생성 중...", Toast.LENGTH_SHORT).show()
-                            mainViewModel.generatePreDepartureNotification() // Try generating again
-                        }
+                        val intent = Intent(context, NotificationListPageActivity::class.java)
+                        context.startActivity(intent)
                     }) {
-                        Icon(Icons.Outlined.Notifications, "출발 알림")
+                        Icon(Icons.Outlined.Notifications, "알림 내역") // Changed contentDescription to "알림 내역"
                     }
                     IconButton(onClick = onSettingsClick) {
                         Icon(Icons.Default.Settings, "설정")

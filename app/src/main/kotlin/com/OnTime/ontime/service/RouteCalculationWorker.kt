@@ -5,7 +5,9 @@ import android.location.Location
 import androidx.work.*
 import com.OnTime.ontime.NotificationBuilder // Import NotificationBuilder
 import com.OnTime.ontime.data.models.CalendarEvent
+import com.OnTime.ontime.data.models.NotificationRecord // Import NotificationRecord
 import com.OnTime.ontime.data.repositories.CalendarRepository
+import com.OnTime.ontime.data.repositories.NotificationRepository // Import NotificationRepository
 import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository // Import WeatherRepository
 import com.OnTime.ontime.api.DirectionsService
@@ -18,6 +20,7 @@ import kotlinx.coroutines.tasks.await
 import java.util.concurrent.TimeUnit
 import kotlin.random.Random
 import java.util.Calendar // For getting day of week
+import java.util.Date // For NotificationRecord timestamp
 
 class RouteCalculationWorker(
     context: Context,
@@ -28,8 +31,9 @@ class RouteCalculationWorker(
 
     private val calendarRepository = CalendarRepository(applicationContext)
     private val settingsRepository = SettingsRepository(applicationContext)
-    private val weatherRepository = WeatherRepository() // Initialize WeatherRepository
+    private val weatherRepository = WeatherRepository()
     private val notificationBuilder = NotificationBuilder()
+    private val notificationRepository = NotificationRepository() // Initialize NotificationRepository
 
     private val locationClient: FusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(context)
 
@@ -81,13 +85,29 @@ class RouteCalculationWorker(
                     val departureTime = event.startTime - travelTimeMillis - bufferMillis
 
                     if (departureTime > System.currentTimeMillis()) {
-                        notificationScheduler.scheduleNotification(
+                        val generatedNotificationMessage = notificationScheduler.scheduleNotification( // Get message from scheduler
                             event = event,
                             departureTime = departureTime,
                             estimatedTravelTimeMinutes = estimatedTravelTimeMinutes,
                             predictedActualTravelTimeMinutes = predictedActualTravelTimeMinutes,
-                            weatherInfo = weatherInfoString // Pass fetched weather info
+                            weatherInfo = weatherInfoString
                         )
+
+                        // Save NotificationRecord to Firebase
+                        generatedNotificationMessage?.let { msg ->
+                            val userPreferences = settingsRepository.getUserPreferences()
+                            val notificationRecord = NotificationRecord(
+                                eventId = event.id,
+                                eventTitle = event.title,
+                                notificationMessage = msg,
+                                timestamp = Date(), // Current time
+                                estimatedTravelTimeMinutes = estimatedTravelTimeMinutes,
+                                actualTravelTimeMinutes = predictedActualTravelTimeMinutes ?: 0, // Use 0 if null
+                                weatherInfo = weatherInfoString,
+                                messageTone = userPreferences.notificationTone.description
+                            )
+                            notificationRepository.saveNotificationRecord(notificationRecord)
+                        }
                     }
                 }
             }
