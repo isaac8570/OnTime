@@ -4,8 +4,11 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -88,6 +91,49 @@ fun NotificationListScreen(notificationRepository: NotificationRepository) {
                 .padding(16.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            val context = androidx.compose.ui.platform.LocalContext.current
+            val notificationManager = com.OnTime.ontime.service.NotificationManager(context)
+
+            Button(onClick = {
+                coroutineScope.launch {
+                    if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
+                        android.widget.Toast.makeText(context, "로그인이 필요합니다.", android.widget.Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+
+                    val appointmentTime = "15:00"
+                    val appointmentLocation = "강남역"
+                    val weather = "맑음, 22도"
+                    val departureTime = "14:30"
+                    val title = "오늘의 약속 알림"
+                    val message = "$appointmentTime 에 $appointmentLocation 에서 약속이 있습니다. 날씨는 $weather 입니다. $departureTime 에 출발하시는 것을 추천합니다."
+
+                    val notificationRecord = com.OnTime.ontime.data.models.NotificationRecord(
+                        id = java.util.UUID.randomUUID().toString(),
+                        eventTitle = title,
+                        notificationMessage = message,
+                        timestamp = java.util.Date(),
+                        estimatedTravelTimeMinutes = 30, // Example
+                        actualTravelTimeMinutes = 0,    // N/A for test
+                        weatherInfo = weather,
+                        messageTone = "친근한" // Example
+                    )
+
+                    try {
+                        notificationRepository.saveNotificationRecord(notificationRecord)
+                        refreshNotifications() // Refresh the list
+                    } catch (e: Exception) {
+                        errorMessage = "테스트 알림 저장 실패: ${e.message}"
+                    }
+
+                    notificationManager.showNotification(title, message)
+                }
+            }) {
+                Text("테스트 알림 생성")
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
             if (isLoading) {
                 CircularProgressIndicator(modifier = Modifier.padding(16.dp))
             } else if (errorMessage != null) {

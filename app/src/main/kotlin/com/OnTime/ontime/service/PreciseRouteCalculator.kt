@@ -64,8 +64,11 @@ class PreciseRouteCalculator(private val context: Context) {
         }
     }
 
+    @android.annotation.SuppressLint("MissingPermission")
     private suspend fun getCurrentPreciseLocation(): Location {
         return try {
+            // This call requires location permission, which is handled at the activity level.
+            // Suppressing the lint check here as the permission is checked before this function is called.
             locationClient.lastLocation.await() ?: Location("default").apply {
                 latitude = 37.5665
                 longitude = 126.9780

@@ -109,8 +109,8 @@ fun NotificationTestSection(
                     return@Button
                 }
 
-                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) {
-                    generatedMessage = "오류: 알림 테스트는 API 레벨 26 이상에서만 지원됩니다."
+                if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                    generatedMessage = "오류: 알림 테스트는 API 레벨 31 이상에서만 지원됩니다."
                     isLoading = false
                     return@Button
                 }
@@ -119,16 +119,20 @@ fun NotificationTestSection(
                 generatedMessage = "Gemini가 메시지를 생성 중입니다..."
                 coroutineScope.launch {
                     val preferences = UserPreferences(notificationTone = testTone)
-                    val message = notificationBuilder.generateNotificationMessage(
-                        userPreferences = preferences,
-                        eventName = "테스트 약속",
-                        eventTime = LocalTime.of(10, 0), // API Level 26 이상에서만 실행됨
-                        travelTime = 30,
-                        actualTravelTime = null, // Explicitly pass null for actualTravelTime
-                        weatherInfo = "맑음",
-                        userPattern = null
-                    )
-                    generatedMessage = message ?: "메시지 생성에 실패했습니다. API 키나 네트워크를 확인해주세요."
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        val message = notificationBuilder.generateNotificationMessage(
+                            userPreferences = preferences,
+                            eventName = "테스트 약속",
+                            eventTime = LocalTime.of(10, 0), // API Level 26 이상에서만 실행됨
+                            travelTime = 30,
+                            actualTravelTime = null, // Explicitly pass null for actualTravelTime
+                            weatherInfo = "맑음",
+                            userPattern = null
+                        )
+                        generatedMessage = message ?: "메시지 생성에 실패했습니다. API 키나 네트워크를 확인해주세요."
+                    } else {
+                        generatedMessage = "오류: 알림 테스트는 API 레벨 31 이상에서만 지원됩니다."
+                    }
                     isLoading = false
                 }
             },

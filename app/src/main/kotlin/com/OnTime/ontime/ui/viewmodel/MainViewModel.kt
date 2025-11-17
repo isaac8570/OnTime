@@ -67,6 +67,7 @@ class MainViewModel(
     /**
      * 다음 예정된 이벤트를 기반으로 출발 전 맞춤 알림 메시지를 생성합니다.
      */
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.S)
     fun generatePreDepartureNotification() {
         _isLoading.value = true
         viewModelScope.launch {

@@ -26,4 +26,10 @@
     <!-- Notifications -->
     <string name="time_to_depart">출발할 시간입니다</string>
     <string name="did_you_leave">출발하셨나요?</string>
+
+    <!--
+    This is the Web Client ID from the Firebase Console.
+    Replace this with your own Web Client ID.
+    -->
+    <string name="default_web_client_id" translatable="false">982541927149-2adlpe42e1l4lcu5hcc2k8m9e4arnjeg.apps.googleusercontent.com</string>
 </resources>

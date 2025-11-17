@@ -446,16 +446,20 @@ fun TestPageScreen(
                     isGeneratingTestMessage = true
                     coroutineScope.launch {
                         val userPreferences = settingsRepository.getUserPreferences()
-                        val message = notificationBuilder.generateNotificationMessage(
-                            userPreferences = userPreferences,
-                            eventName = selectedEvent!!.title,
-                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
-                            travelTime = estimatedTravelTimeMinutes!!,
-                            actualTravelTime = estimatedTravelTimeMinutes!! + 5, // 5분 지각 시뮬레이션
-                            weatherInfo = currentWeather,
-                            userPattern = null
-                        )
-                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            val message = notificationBuilder.generateNotificationMessage(
+                                userPreferences = userPreferences,
+                                eventName = selectedEvent!!.title,
+                                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                                travelTime = estimatedTravelTimeMinutes!!,
+                                actualTravelTime = estimatedTravelTimeMinutes!! + 5, // 5분 지각 시뮬레이션
+                                weatherInfo = currentWeather,
+                                userPattern = null
+                            )
+                            generatedTestMessage = message ?: "메시지 생성 실패"
+                        } else {
+                            generatedTestMessage = "API level S 이상이 필요합니다."
+                        }
                         isGeneratingTestMessage = false
                     }
                 },
@@ -472,16 +476,20 @@ fun TestPageScreen(
                     isGeneratingTestMessage = true
                     coroutineScope.launch {
                         val userPreferences = settingsRepository.getUserPreferences()
-                        val message = notificationBuilder.generateNotificationMessage(
-                            userPreferences = userPreferences,
-                            eventName = selectedEvent!!.title,
-                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
-                            travelTime = estimatedTravelTimeMinutes!!,
-                            actualTravelTime = estimatedTravelTimeMinutes!! - 5, // 5분 일찍 도착 시뮬레이션
-                            weatherInfo = currentWeather,
-                            userPattern = null
-                        )
-                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            val message = notificationBuilder.generateNotificationMessage(
+                                userPreferences = userPreferences,
+                                eventName = selectedEvent!!.title,
+                                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                                travelTime = estimatedTravelTimeMinutes!!,
+                                actualTravelTime = estimatedTravelTimeMinutes!! - 5, // 5분 일찍 도착 시뮬레이션
+                                weatherInfo = currentWeather,
+                                userPattern = null
+                            )
+                            generatedTestMessage = message ?: "메시지 생성 실패"
+                        } else {
+                            generatedTestMessage = "API level S 이상이 필요합니다."
+                        }
                         isGeneratingTestMessage = false
                     }
                 },
@@ -503,16 +511,20 @@ fun TestPageScreen(
                     isGeneratingTestMessage = true
                     coroutineScope.launch {
                         val userPreferences = settingsRepository.getUserPreferences()
-                        val message = notificationBuilder.generateNotificationMessage(
-                            userPreferences = userPreferences,
-                            eventName = selectedEvent!!.title,
-                            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
-                            travelTime = estimatedTravelTimeMinutes!!,
-                            actualTravelTime = estimatedTravelTimeMinutes!!, // 정시 도착 시뮬레이션
-                            weatherInfo = currentWeather,
-                            userPattern = null
-                        )
-                        generatedTestMessage = message ?: "메시지 생성 실패"
+                        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                            val message = notificationBuilder.generateNotificationMessage(
+                                userPreferences = userPreferences,
+                                eventName = selectedEvent!!.title,
+                                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(selectedEvent!!.startTime), ZoneId.systemDefault()),
+                                travelTime = estimatedTravelTimeMinutes!!,
+                                actualTravelTime = estimatedTravelTimeMinutes!!, // 정시 도착 시뮬레이션
+                                weatherInfo = currentWeather,
+                                userPattern = null
+                            )
+                            generatedTestMessage = message ?: "메시지 생성 실패"
+                        } else {
+                            generatedTestMessage = "API level S 이상이 필요합니다."
+                        }
                         isGeneratingTestMessage = false
                     }
                 },

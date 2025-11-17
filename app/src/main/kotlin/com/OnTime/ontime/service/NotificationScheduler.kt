@@ -34,15 +34,19 @@ class NotificationScheduler(
         val userPreferences = settingsRepository.getUserPreferences() // Call directly, not runBlocking
 
         // Generate personalized message using NotificationBuilder
-        val notificationMessage = notificationBuilder.generateNotificationMessage(
-            userPreferences = userPreferences,
-            eventName = event.title,
-            eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(event.startTime), ZoneId.systemDefault()), // Convert Long to LocalTime
-            travelTime = estimatedTravelTimeMinutes,
-            actualTravelTime = predictedActualTravelTimeMinutes,
-            weatherInfo = weatherInfo, // Use the passed weatherInfo
-            userPattern = "과거 패턴 정보가 있을 경우 여기에 추가" // TODO: Integrate actual user pattern logic
-        )
+        val notificationMessage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            notificationBuilder.generateNotificationMessage(
+                userPreferences = userPreferences,
+                eventName = event.title,
+                eventTime = LocalTime.ofInstant(Instant.ofEpochMilli(event.startTime), ZoneId.systemDefault()), // Convert Long to LocalTime
+                travelTime = estimatedTravelTimeMinutes,
+                actualTravelTime = predictedActualTravelTimeMinutes,
+                weatherInfo = weatherInfo, // Use the passed weatherInfo
+                userPattern = "과거 패턴 정보가 있을 경우 여기에 추가" // TODO: Integrate actual user pattern logic
+            )
+        } else {
+            "일정에 늦지 않도록 준비하세요!"
+        }
 
         val intent = Intent(context, NotificationReceiver::class.java).apply {
             putExtra("event_title", event.title)
