@@ -96,6 +96,11 @@ fun NotificationListScreen(notificationRepository: NotificationRepository) {
 
             Button(onClick = {
                 coroutineScope.launch {
+                    if (com.google.firebase.auth.FirebaseAuth.getInstance().currentUser == null) {
+                        android.widget.Toast.makeText(context, "로그인이 필요합니다.", android.widget.Toast.LENGTH_SHORT).show()
+                        return@launch
+                    }
+
                     val appointmentTime = "15:00"
                     val appointmentLocation = "강남역"
                     val weather = "맑음, 22도"

@@ -175,6 +175,7 @@ fun MainScreen(
                         Icon(Icons.Default.Settings, "설정")
                     }
                     IconButton(onClick = {
+                        com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
                         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
                         val googleSignInClient = GoogleSignIn.getClient(context, gso)
                         googleSignInClient.signOut().addOnCompleteListener {
