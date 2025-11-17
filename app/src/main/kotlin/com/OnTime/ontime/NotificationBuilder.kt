@@ -31,6 +31,7 @@ class NotificationBuilder {
      * @param userPattern 사용자의 과거 행동 패턴 (예: "이 장소에 10분씩 늦는 경향이 있음")
      * @return 생성된 알림 메시지 문자열 또는 오류 시 null
      */
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.S)
     suspend fun generateNotificationMessage(
         userPreferences: UserPreferences,
         eventName: String,
@@ -59,6 +60,7 @@ class NotificationBuilder {
     /**
      * Gemini 모델에 전달할 프롬프트를 생성합니다.
      */
+    @androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.S)
     private fun createPrompt(
         userPreferences: UserPreferences,
         eventName: String,
@@ -143,6 +145,7 @@ class NotificationBuilder {
 }
 
 // --- 사용 예시 ---
+@androidx.annotation.RequiresApi(android.os.Build.VERSION_CODES.S)
 fun main() = runBlocking {
     // 로컬에서 직접 실행 시 BuildConfig.GEMINI_API_KEY가 비어있을 수 있으므로,
     // 실행 전 local.properties 파일에 GEMINI_API_KEY가 설정되었는지 확인하세요.

@@ -140,7 +140,9 @@ fun MainScreen(
             launcher.launch(permissions)
         }
         calendarViewModel.loadEventsWithTravelTime()
-        mainViewModel.generatePreDepartureNotification() // Generate notification message on launch
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+            mainViewModel.generatePreDepartureNotification() // Generate notification message on launch
+        }
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
