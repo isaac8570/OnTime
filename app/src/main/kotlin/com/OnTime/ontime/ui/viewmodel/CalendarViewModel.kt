@@ -189,7 +189,7 @@ class CalendarViewModel(
                     val myLocationText = if (currentLocation != null) {
                         "위도: ${String.format("%.4f", currentLocation.latitude)}, 경도: ${String.format("%.4f", currentLocation.longitude)}"
                     } else {
-                        "위치 정보 없음"
+                        "위치 정보 없음"ㅇ
                     }
 
                     val extractedLocation = locationExtractor.extractLocationFromText(
