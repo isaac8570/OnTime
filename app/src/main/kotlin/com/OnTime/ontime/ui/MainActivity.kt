@@ -201,15 +201,7 @@ fun MainScreen(
                 }
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    calendarViewModel.testRAGSystem()
-                }
-            ) {
-                Text("🧠")
-            }
-        }
+
     ) { padding ->
         Column(modifier = Modifier
             .fillMaxSize()
@@ -222,28 +214,7 @@ fun MainScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Card for Weather Check
-                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (isLoadingMessage && weatherStatus == null) {
-                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
-                        } else {
-                            Text(
-                                text = weatherStatus ?: "버튼을 눌러 현재 날씨를 확인하세요.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        Button(onClick = { mainViewModel.checkCurrentWeather() }) {
-                            Text("날씨 확인하기")
-                        }
-                    }
-                }
+
 
                 /* Removed ETA Notification Card - replaced by pre-departure notification
                 // Card for ETA Notification
@@ -270,27 +241,9 @@ fun MainScreen(
                 }
                 */
 
-                // Button to launch DataCollectionActivity
-                Button(
-                    onClick = {
-                        val intent = Intent(context, DataCollectionActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("데이터 수집 페이지로 이동")
-                }
 
-                // Button to launch TestPageActivity
-                Button(
-                    onClick = {
-                        val intent = Intent(context, TestPageActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("테스트 페이지로 이동")
-                }
+
+
             }
 
 
