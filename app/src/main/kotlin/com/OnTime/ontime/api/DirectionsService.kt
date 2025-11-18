@@ -11,7 +11,8 @@ interface DirectionsService {
         @Query("origin") origin: String,
         @Query("destination") destination: String,
         @Query("mode") mode: String,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String,
+        @Query("departure_time") departureTime: Long?
     ): Response<DirectionsResponse>
 }
 

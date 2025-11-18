@@ -14,9 +14,11 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import android.app.Application
 import androidx.compose.ui.platform.LocalContext
@@ -130,18 +132,30 @@ fun CustomLocationSettingsScreen(
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(customLocations) { location ->
-                CustomLocationItem(location = location)
+                CustomLocationItem(
+                    location = location,
+                    onDeleteClick = { customLocationViewModel.deleteCustomLocation(location.id) }
+                )
             }
         }
     }
 }
 
 @Composable
-fun CustomLocationItem(location: CustomLocation) {
+fun CustomLocationItem(location: CustomLocation, onDeleteClick: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(text = location.name, style = MaterialTheme.typography.titleMedium)
-            Text(text = location.address, style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(text = location.name, style = MaterialTheme.typography.titleMedium)
+                Text(text = location.address, style = MaterialTheme.typography.bodyMedium)
+            }
+            IconButton(onClick = onDeleteClick) {
+                Icon(Icons.Filled.Delete, contentDescription = "삭제")
+            }
         }
     }
 }

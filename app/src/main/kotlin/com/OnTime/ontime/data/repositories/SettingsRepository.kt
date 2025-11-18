@@ -121,4 +121,26 @@ class SettingsRepository(private val context: Context) { // Context might still 
             emptyList() // Return empty list on error
         }
     }
+
+    suspend fun deleteCustomLocation(locationId: String): SaveResult {
+        Logger.d("Attempting to delete custom location with ID: $locationId")
+        val currentUser = auth.currentUser
+        if (currentUser == null) {
+            Logger.d("Delete failed: No user logged in.")
+            return SaveResult.UserNotLoggedIn
+        }
+
+        return try {
+            usersCollection.document(currentUser.uid)
+                .collection("customLocations")
+                .document(locationId)
+                .delete()
+                .await()
+            Logger.i("Successfully deleted custom location $locationId for user ${currentUser.uid}")
+            SaveResult.Success
+        } catch (e: Exception) {
+            Logger.e("Error deleting custom location $locationId from Firestore", e)
+            SaveResult.FirestoreError(e.message)
+        }
+    }
 }

@@ -40,6 +40,16 @@ class CustomLocationViewModel(
         }
     }
 
+    fun deleteCustomLocation(locationId: String) {
+        viewModelScope.launch {
+            when (val result = settingsRepository.deleteCustomLocation(locationId)) {
+                is SettingsRepository.SaveResult.Success -> loadCustomLocations() // Refresh the list on success
+                is SettingsRepository.SaveResult.UserNotLoggedIn -> _saveError.value = "로그인 상태가 아닙니다."
+                is SettingsRepository.SaveResult.FirestoreError -> _saveError.value = "삭제 실패: ${result.message}"
+            }
+        }
+    }
+
     fun onSaveErrorShown() {
         _saveError.value = null
     }

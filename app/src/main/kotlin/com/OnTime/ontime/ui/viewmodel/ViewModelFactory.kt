@@ -10,6 +10,7 @@ import com.OnTime.ontime.data.repositories.SettingsRepository // Import Settings
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.data.repositories.TravelTimeRepository
 import com.OnTime.ontime.service.AndroidLocationService
+import com.OnTime.ontime.service.NotificationScheduler
 import com.OnTime.ontime.util.CustomLocationManager
 
 /**
@@ -29,6 +30,7 @@ class ViewModelFactory(
         // Dependencies that can be created here
         val customLocationManager = CustomLocationManager(settingsRepository)
         val travelTimeRepository = TravelTimeRepository(application, locationRepository, customLocationManager)
+        val notificationScheduler = NotificationScheduler(application, notificationBuilder, settingsRepository)
 
         // 생성하려는 ViewModel 클래스에 따라 분기하여 적절한 인스턴스를 반환합니다.
         return when {
@@ -38,9 +40,9 @@ class ViewModelFactory(
                 CalendarViewModel(
                     application,
                     calendarRepository,
-                    weatherRepository,
                     locationRepository,
-                    travelTimeRepository // Inject the repository
+                    travelTimeRepository,
+                    notificationScheduler
                 ) as T
             }
             // MainViewModel을 생성해야 하는 경우

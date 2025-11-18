@@ -13,5 +13,7 @@ data class CalendarEvent(
     var travelDuration: String? = null,
     var originLatLng: Pair<Double, Double>? = null,
     var destinationLatLng: Pair<Double, Double>? = null,
-    var debugStatus: String = "Idle"
+    var debugStatus: String = "Idle",
+    var finalTravelMode: String? = null,
+    var departureTime: Long? = null
 )

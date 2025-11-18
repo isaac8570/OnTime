@@ -62,18 +62,22 @@ class LocationRepository(private val context: Context) {
     suspend fun calculateTravelTime(
         originLatLng: Pair<Double, Double>,
         destinationLatLng: Pair<Double, Double>,
-        mode: String = Constants.MODE_TRANSIT
+        mode: String = Constants.MODE_TRANSIT,
+        departureTime: Long? = null
     ): TravelInfo? {
         val origin = "${originLatLng.first},${originLatLng.second}"
         val destination = "${destinationLatLng.first},${destinationLatLng.second}"
-        Logger.d("Calculating travel time. Origin: $origin, Destination: $destination, Mode: $mode")
+        val departureTimeInSeconds = departureTime?.div(1000)
+
+        Logger.d("Calculating travel time. Origin: $origin, Destination: $destination, Mode: $mode, DepartureTime: $departureTime")
 
         return try {
             val response = directionsService.getDirections(
                 origin = origin,
                 destination = destination,
                 mode = mode,
-                apiKey = Constants.GOOGLE_MAPS_API_KEY
+                apiKey = Constants.GOOGLE_MAPS_API_KEY,
+                departureTime = departureTimeInSeconds
             )
 
             if (response.isSuccessful) {
@@ -98,7 +102,8 @@ class LocationRepository(private val context: Context) {
                             durationMinutes = it.duration.value / 60,
                             durationText = it.duration.text,
                             distanceText = it.distance.text,
-                            routeDetails = routeDetails
+                            routeDetails = routeDetails,
+                            mode = mode
                         )
                         Logger.d("Successfully calculated travel time: ${travelInfo.durationText}")
                         Logger.d("Route Details: $routeDetails")

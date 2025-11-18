@@ -289,7 +289,7 @@ fun MainScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(events) { event ->
-                            ModernEventCard(event = event, travelMode = travelMode)
+                            ModernEventCard(event = event)
                         }
                         if (isLoadingMore) {
                             item {
@@ -343,7 +343,7 @@ fun EmptyState(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ModernEventCard(event: CalendarEvent, travelMode: String) {
+fun ModernEventCard(event: CalendarEvent) {
     val dateFormat = SimpleDateFormat("MM월 dd일", Locale.KOREA)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
@@ -453,7 +453,7 @@ fun ModernEventCard(event: CalendarEvent, travelMode: String) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            val travelIcon = when (travelMode) {
+            val travelIcon = when (event.finalTravelMode) {
                 Constants.MODE_DRIVING -> Icons.Outlined.DirectionsCar
                 Constants.MODE_WALKING -> Icons.Outlined.DirectionsWalk
                 else -> Icons.Outlined.DirectionsTransit
@@ -475,7 +475,7 @@ fun ModernEventCard(event: CalendarEvent, travelMode: String) {
                 InfoChip(
                     icon = Icons.Outlined.Notifications,
                     label = "출발시간",
-                    value = "계산 중..."
+                    value = event.departureTime?.let { timeFormat.format(Date(it)) } ?: "계산 중..."
                 )
             }
 

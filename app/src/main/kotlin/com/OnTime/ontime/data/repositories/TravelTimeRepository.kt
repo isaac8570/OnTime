@@ -19,7 +19,8 @@ class TravelTimeRepository(
 
     suspend fun calculateTravelTimeForEvent(
         event: CalendarEvent,
-        transportMode: String = Constants.MODE_TRANSIT
+        transportMode: String = Constants.MODE_TRANSIT,
+        departureTime: Long? = null
     ): TravelInfo? {
         Logger.d("Processing event: '${event.title}' (ID: ${event.id})")
         val currentLocation = locationRepository.getCurrentLocation() ?: run {
@@ -78,18 +79,20 @@ class TravelTimeRepository(
         return locationRepository.calculateTravelTime(
             originLatLng = Pair(currentLocation.latitude, currentLocation.longitude),
             destinationLatLng = destinationLatLng,
-            mode = transportMode
+            mode = transportMode,
+            departureTime = departureTime
         )
     }
 
     suspend fun calculateTravelTimeForEvents(
         events: List<CalendarEvent>,
-        transportMode: String = Constants.MODE_TRANSIT
+        transportMode: String = Constants.MODE_TRANSIT,
+        departureTime: Long? = null
     ): Map<String, TravelInfo> {
         val results = mutableMapOf<String, TravelInfo>()
 
         events.forEach { event ->
-            calculateTravelTimeForEvent(event, transportMode)?.let { travelInfo ->
+            calculateTravelTimeForEvent(event, transportMode, departureTime)?.let { travelInfo ->
                 results[event.id] = travelInfo
             }
         }
