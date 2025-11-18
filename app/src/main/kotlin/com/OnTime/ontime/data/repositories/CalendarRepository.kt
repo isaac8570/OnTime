@@ -10,9 +10,9 @@ import com.google.api.client.json.gson.GsonFactory
 import com.google.api.client.util.DateTime
 import com.google.api.services.calendar.Calendar
 import com.google.api.services.calendar.CalendarScopes
+import com.OnTime.ontime.util.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.OnTime.ontime.util.LocationConverter
 
 // 클래스 생성 시 context를 받습니다.
 class CalendarRepository(private val context: Context) {
@@ -24,15 +24,19 @@ class CalendarRepository(private val context: Context) {
     suspend fun getEvents(maxResults: Int, pageToken: String? = null): Pair<List<CalendarEvent>, String?> {
         return withContext(Dispatchers.IO) {
             try {
+                Logger.d("Attempting to get last signed-in Google account.")
                 val account = GoogleSignIn.getLastSignedInAccount(context)
                 if (account == null) {
+                    Logger.e("GoogleSignIn.getLastSignedInAccount() returned null. User might be signed out.")
                     return@withContext Pair(emptyList(), null)
                 }
+                Logger.d("Successfully got account: ${account.email}")
 
                 val service = getOrCreateService(account.email)
 
                 val threeHoursAgo = DateTime(System.currentTimeMillis() - 3 * 60 * 60 * 1000)
 
+                Logger.d("Executing Calendar API request...")
                 val eventsRequest = service.events().list("primary")
                     .setMaxResults(maxResults)
                     .setTimeMin(threeHoursAgo)
@@ -45,11 +49,14 @@ class CalendarRepository(private val context: Context) {
                 }
 
                 val events = eventsRequest.execute()
+                Logger.d("Calendar API request executed.")
 
                 if (events.items.isNullOrEmpty()) {
+                    Logger.d("Calendar API returned no events (or items list is null/empty).")
                     return@withContext Pair(emptyList(), events.nextPageToken)
                 }
 
+                Logger.d("Found ${events.items.size} events from Calendar API.")
                 val calendarEvents = events.items.mapNotNull { event ->
                     val startTime = event.start?.dateTime?.value ?: event.start?.date?.value
                     val endTime = event.end?.dateTime?.value ?: event.end?.date?.value
@@ -69,7 +76,7 @@ class CalendarRepository(private val context: Context) {
                 Pair(calendarEvents, events.nextPageToken)
 
             } catch (e: Exception) {
-                Log.e("OnTime", "캘린더 로딩 오류: ${e.message}")
+                Logger.e("캘린더 로딩 오류", e)
                 Pair(emptyList(), null)
             }
         }

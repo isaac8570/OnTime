@@ -12,5 +12,6 @@ data class CalendarEvent(
     var weatherInfo: List<WeatherItem>? = null, // Add weather information
     var travelDuration: String? = null,
     var originLatLng: Pair<Double, Double>? = null,
-    var destinationLatLng: Pair<Double, Double>? = null
+    var destinationLatLng: Pair<Double, Double>? = null,
+    var debugStatus: String = "Idle"
 )

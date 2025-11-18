@@ -11,6 +11,7 @@ import com.OnTime.ontime.api.DirectionsService
 import com.OnTime.ontime.api.RetrofitClient
 import com.OnTime.ontime.data.models.TravelInfo
 import com.OnTime.ontime.util.Constants
+import com.OnTime.ontime.util.Logger
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -37,15 +38,22 @@ class LocationRepository(private val context: Context) {
                 context, Manifest.permission.ACCESS_FINE_LOCATION
             ) != PackageManager.PERMISSION_GRANTED
         ) {
+            Logger.d("Location permission not granted.")
             return null
         }
 
         return suspendCancellableCoroutine { continuation ->
             fusedLocationClient.lastLocation
                 .addOnSuccessListener { location ->
+                    if (location != null) {
+                        Logger.d("Successfully got last known location: $location")
+                    } else {
+                        Logger.d("Last known location is null.")
+                    }
                     continuation.resume(location)
                 }
-                .addOnFailureListener {
+                .addOnFailureListener { e ->
+                    Logger.e("Failed to get last known location", e)
                     continuation.resume(null)
                 }
         }
@@ -58,13 +66,12 @@ class LocationRepository(private val context: Context) {
     ): TravelInfo? {
         val origin = "${originLatLng.first},${originLatLng.second}"
         val destination = "${destinationLatLng.first},${destinationLatLng.second}"
+        Logger.d("Calculating travel time. Origin: $origin, Destination: $destination, Mode: $mode")
 
         return try {
-            val encodedDestination = java.net.URLEncoder.encode(destination, "UTF-8")
-
             val response = directionsService.getDirections(
                 origin = origin,
-                destination = encodedDestination,
+                destination = destination,
                 mode = mode,
                 apiKey = Constants.GOOGLE_MAPS_API_KEY
             )
@@ -72,27 +79,46 @@ class LocationRepository(private val context: Context) {
             if (response.isSuccessful) {
                 val body = response.body()
                 if (body?.status == "OK") {
-                    val route = body.routes?.firstOrNull()
+                    val route = body.routes.firstOrNull()
                     val leg = route?.legs?.firstOrNull()
 
                     leg?.let {
-                        TravelInfo(
+                        // Build detailed route description
+                        val routeDetails = it.steps?.joinToString(separator = " -> ") { step ->
+                            val instruction = stripHtmlTags(step.html_instructions ?: "")
+                            if (step.travel_mode == "TRANSIT" && step.transit_details?.line != null) {
+                                val lineName = step.transit_details.line.short_name ?: step.transit_details.line.name
+                                "[${lineName}] $instruction"
+                            } else {
+                                instruction
+                            }
+                        }
+                        
+                        val travelInfo = TravelInfo(
                             durationMinutes = it.duration.value / 60,
                             durationText = it.duration.text,
-                            distanceText = it.distance.text
+                            distanceText = it.distance.text,
+                            routeDetails = routeDetails
                         )
+                        Logger.d("Successfully calculated travel time: ${travelInfo.durationText}")
+                        Logger.d("Route Details: $routeDetails")
+                        return@let travelInfo
                     }
                 } else {
-                    println("Google Maps API Error: ${body?.status}")
+                    Logger.e("Google Maps API Error: ${body?.status}")
                     null
                 }
             } else {
-                println("HTTP Error: ${response.code()} - ${response.message()}")
+                Logger.e("HTTP Error: ${response.code()} - ${response.message()}")
                 null
             }
         } catch (e: Exception) {
-            println("Exception: ${e.message}")
+            Logger.e("Exception in calculateTravelTime", e)
             null
         }
+    }
+
+    private fun stripHtmlTags(html: String): String {
+        return android.text.Html.fromHtml(html, android.text.Html.FROM_HTML_MODE_LEGACY).toString()
     }
 }

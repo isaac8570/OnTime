@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.LocationOn
+import androidx.compose.material.icons.outlined.DirectionsTransit
+import androidx.compose.material.icons.outlined.DirectionsWalk
 import androidx.compose.material.icons.outlined.Notifications
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -56,6 +58,7 @@ import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import com.OnTime.ontime.ui.viewmodel.MainViewModel
 import com.OnTime.ontime.ui.viewmodel.ViewModelFactory
+import com.OnTime.ontime.util.Constants
 import com.OnTime.ontime.util.LocationConverter
 import com.OnTime.ontime.worker.CalendarSyncWorker
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -152,6 +155,7 @@ fun MainScreen(
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
     val isLoadingMore by calendarViewModel.isLoadingMore.observeAsState(initial = false) // New
+    val travelMode by calendarViewModel.travelMode.observeAsState(initial = Constants.MODE_TRANSIT)
     // Removed old notificationMessage and weatherStatus from MainViewModel
     // val notificationMessage by mainViewModel.notificationMessage.observeAsState()
     val weatherStatus by mainViewModel.weatherStatus.observeAsState() // Still useful for general weather display
@@ -285,7 +289,7 @@ fun MainScreen(
                         verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
                         items(events) { event ->
-                            ModernEventCard(event)
+                            ModernEventCard(event = event, travelMode = travelMode)
                         }
                         if (isLoadingMore) {
                             item {
@@ -339,7 +343,7 @@ fun EmptyState(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ModernEventCard(event: CalendarEvent) {
+fun ModernEventCard(event: CalendarEvent, travelMode: String) {
     val dateFormat = SimpleDateFormat("MM월 dd일", Locale.KOREA)
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
@@ -449,6 +453,12 @@ fun ModernEventCard(event: CalendarEvent) {
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            val travelIcon = when (travelMode) {
+                Constants.MODE_DRIVING -> Icons.Outlined.DirectionsCar
+                Constants.MODE_WALKING -> Icons.Outlined.DirectionsWalk
+                else -> Icons.Outlined.DirectionsTransit
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -458,7 +468,7 @@ fun ModernEventCard(event: CalendarEvent) {
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
                 InfoChip(
-                    icon = Icons.Outlined.DirectionsCar,
+                    icon = travelIcon,
                     label = "이동시간",
                     value = event.travelDuration ?: "계산 중..."
                 )
@@ -468,6 +478,14 @@ fun ModernEventCard(event: CalendarEvent) {
                     value = "계산 중..."
                 )
             }
+
+            // Debug Status Text
+            Text(
+                text = "Debug: ${event.debugStatus}",
+                modifier = Modifier.padding(top = 8.dp),
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            )
         }
     }
 }
