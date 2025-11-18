@@ -29,6 +29,11 @@ class CalendarViewModel(
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
 
+    private val _isLoadingMore = MutableLiveData<Boolean>(false)
+    val isLoadingMore: LiveData<Boolean> = _isLoadingMore
+
+    private val _nextPageToken = MutableLiveData<String?>(null)
+
     private val _travelMode = MutableLiveData<String>(Constants.MODE_TRANSIT)
     val travelMode: LiveData<String> = _travelMode
 
@@ -39,9 +44,9 @@ class CalendarViewModel(
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                // ★★★ [수정] getEvents() 호출 시 불필요한 인자를 제거합니다. ★★★
-                val events = calendarRepository.getEvents()
+                val (events, nextPageToken) = calendarRepository.getEvents(10)
                 _events.postValue(events)
+                _nextPageToken.postValue(nextPageToken)
 
                 // Calculate travel times for all events
                 calculateTravelTimesForEvents(events)
@@ -49,6 +54,30 @@ class CalendarViewModel(
                 // Handle error
             } finally {
                 _isLoading.postValue(false)
+            }
+        }
+    }
+
+    fun loadMoreEvents() {
+        if (_isLoadingMore.value == true || _nextPageToken.value == null) {
+            return
+        }
+
+        _isLoadingMore.value = true
+        viewModelScope.launch {
+            try {
+                val (newEvents, nextPageToken) = calendarRepository.getEvents(10, _nextPageToken.value)
+                val currentEvents = _events.value.orEmpty().toMutableList()
+                currentEvents.addAll(newEvents)
+                _events.postValue(currentEvents)
+                _nextPageToken.postValue(nextPageToken)
+
+                // Calculate travel times for newly loaded events
+                calculateTravelTimesForEvents(newEvents)
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                _isLoadingMore.postValue(false)
             }
         }
     }
@@ -180,10 +209,10 @@ class CalendarViewModel(
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
                 // val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication()) // REMOVED
 
-                val realEvents = calendarRepository.getEvents()
+                val realEvents = calendarRepository.getEvents(15)
 
-                if (realEvents.isNotEmpty()) {
-                    val firstEvent = realEvents.first()
+                if (realEvents.first.isNotEmpty()) {
+                    val firstEvent = realEvents.first.first()
 
                     val currentLocation = locationRepository.getCurrentLocation()
                     val myLocationText = if (currentLocation != null) {

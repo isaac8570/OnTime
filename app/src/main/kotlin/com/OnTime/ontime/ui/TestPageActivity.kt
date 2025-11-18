@@ -154,7 +154,8 @@ fun TestPageScreen(
         }
         if (calendarPermissionGranted) {
             coroutineScope.launch {
-                calendarEvents = calendarRepository.getEvents()
+                val (events, _) = calendarRepository.getEvents(15)
+                calendarEvents = events
             }
         }
     }
@@ -202,7 +203,10 @@ fun TestPageScreen(
                 }
             }
             if (calendarPermissionGranted) {
-                calendarEvents = calendarRepository.getEvents()
+                coroutineScope.launch {
+                    val (events, _) = calendarRepository.getEvents(15)
+                    calendarEvents = events
+                }
             }
         }
     }
