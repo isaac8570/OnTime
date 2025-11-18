@@ -1,8 +1,13 @@
 package com.OnTime.ontime.ui
 
+import android.app.Activity
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -14,6 +19,7 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.livedata.observeAsState
 import androidx.compose.ui.Modifier
 import android.app.Application
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModel
@@ -22,7 +28,6 @@ import com.OnTime.ontime.data.models.CustomLocation
 import com.OnTime.ontime.data.repositories.SettingsRepository
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CustomLocationViewModel
-import com.OnTime.ontime.ui.viewmodel.ViewModelFactory
 
 class CustomLocationSettingsActivity : ComponentActivity() {
 
@@ -62,8 +67,40 @@ fun CustomLocationSettingsScreen(
     onBackClick: () -> Unit,
     customLocationViewModel: CustomLocationViewModel
 ) {
+    val context = LocalContext.current
     val customLocations by customLocationViewModel.customLocations.observeAsState(emptyList())
-    var showDialog by remember { mutableStateOf(false) }
+    val saveError by customLocationViewModel.saveError.observeAsState()
+
+    // Show a toast on save error
+    LaunchedEffect(saveError) {
+        saveError?.let {
+            Toast.makeText(context, it, Toast.LENGTH_LONG).show()
+            customLocationViewModel.onSaveErrorShown()
+        }
+    }
+
+    val addLocationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            val data = result.data
+            val name = data?.getStringExtra("name")
+            val address = data?.getStringExtra("address")
+            val latitude = data?.getDoubleExtra("latitude", 0.0)
+            val longitude = data?.getDoubleExtra("longitude", 0.0)
+
+            if (name != null && address != null) {
+                customLocationViewModel.saveCustomLocation(
+                    CustomLocation(
+                        name = name,
+                        address = address,
+                        latitude = latitude ?: 0.0,
+                        longitude = longitude ?: 0.0
+                    )
+                )
+            }
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -77,7 +114,10 @@ fun CustomLocationSettingsScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showDialog = true }) {
+            FloatingActionButton(onClick = {
+                val intent = Intent(context, AddCustomLocationMapActivity::class.java)
+                addLocationLauncher.launch(intent)
+            }) {
                 Icon(Icons.Filled.Add, "새 위치 추가")
             }
         }
@@ -93,18 +133,6 @@ fun CustomLocationSettingsScreen(
                 CustomLocationItem(location = location)
             }
         }
-
-        if (showDialog) {
-            AddCustomLocationDialog(
-                onDismiss = { showDialog = false },
-                onSave = { name, address, latitude, longitude ->
-                    customLocationViewModel.saveCustomLocation(
-                        CustomLocation(name = name, address = address, latitude = latitude, longitude = longitude)
-                    )
-                    showDialog = false
-                }
-            )
-        }
     }
 }
 
@@ -114,73 +142,6 @@ fun CustomLocationItem(location: CustomLocation) {
         Column(modifier = Modifier.padding(16.dp)) {
             Text(text = location.name, style = MaterialTheme.typography.titleMedium)
             Text(text = location.address, style = MaterialTheme.typography.bodyMedium)
-            Text(text = "위도: ${location.latitude}, 경도: ${location.longitude}", style = MaterialTheme.typography.bodySmall)
         }
     }
-}
-
-@Composable
-fun AddCustomLocationDialog(
-    onDismiss: () -> Unit,
-    onSave: (name: String, address: String, latitude: Double, longitude: Double) -> Unit
-) {
-    var name by remember { mutableStateOf("") }
-    var address by remember { mutableStateOf("") }
-    var latitude by remember { mutableStateOf("") }
-    var longitude by remember { mutableStateOf("") }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("새 사용자 정의 위치 추가") },
-        text = {
-            Column {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("이름 (예: 집, 회사)") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = address,
-                    onValueChange = { address = it },
-                    label = { Text("주소") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = latitude,
-                    onValueChange = { latitude = it },
-                    label = { Text("위도") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = longitude,
-                    onValueChange = { longitude = it },
-                    label = { Text("경도") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-        },
-        confirmButton = {
-            Button(
-                onClick = {
-                    onSave(
-                        name,
-                        address,
-                        latitude.toDoubleOrNull() ?: 0.0,
-                        longitude.toDoubleOrNull() ?: 0.0
-                    )
-                }
-            ) {
-                Text("저장")
-            }
-        },
-        dismissButton = {
-            Button(onClick = onDismiss) {
-                Text("취소")
-            }
-        }
-    )
 }

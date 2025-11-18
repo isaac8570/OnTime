@@ -17,6 +17,9 @@ class CustomLocationViewModel(
     private val _customLocations = MutableLiveData<List<CustomLocation>>()
     val customLocations: LiveData<List<CustomLocation>> = _customLocations
 
+    private val _saveError = MutableLiveData<String?>(null)
+    val saveError: LiveData<String?> = _saveError
+
     init {
         loadCustomLocations()
     }
@@ -29,13 +32,15 @@ class CustomLocationViewModel(
 
     fun saveCustomLocation(location: CustomLocation) {
         viewModelScope.launch {
-            try {
-                settingsRepository.saveCustomLocation(location)
-                loadCustomLocations() // Refresh the list after saving
-            } catch (e: Exception) {
-                println("Error saving custom location: ${e.message}")
-                // Optionally, handle error UI here
+            when (val result = settingsRepository.saveCustomLocation(location)) {
+                is SettingsRepository.SaveResult.Success -> loadCustomLocations()
+                is SettingsRepository.SaveResult.UserNotLoggedIn -> _saveError.value = "로그인 상태가 아닙니다. 앱을 다시 시작하거나 다시 로그인해주세요."
+                is SettingsRepository.SaveResult.FirestoreError -> _saveError.value = "데이터베이스 저장에 실패했습니다: ${result.message}"
             }
         }
+    }
+
+    fun onSaveErrorShown() {
+        _saveError.value = null
     }
 }

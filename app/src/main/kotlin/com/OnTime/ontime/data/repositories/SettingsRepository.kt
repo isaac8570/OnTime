@@ -14,6 +14,12 @@ class SettingsRepository(private val context: Context) { // Context might still 
     private val auth = FirebaseAuth.getInstance()
     private val usersCollection = db.collection("users")
 
+    sealed class SaveResult {
+        object Success : SaveResult()
+        object UserNotLoggedIn : SaveResult()
+        data class FirestoreError(val message: String?) : SaveResult()
+    }
+
     suspend fun getUserPreferences(): UserPreferences {
         val currentUser = auth.currentUser
         if (currentUser == null) {
@@ -54,14 +60,14 @@ class SettingsRepository(private val context: Context) { // Context might still 
         }
     }
 
-    suspend fun saveCustomLocation(location: CustomLocation) {
+    suspend fun saveCustomLocation(location: CustomLocation): SaveResult {
         val currentUser = auth.currentUser
         if (currentUser == null) {
             println("Warning: No user logged in. Custom location not saved to Firestore.")
-            return
+            return SaveResult.UserNotLoggedIn
         }
 
-        try {
+        return try {
             val documentRef = if (location.id.isEmpty()) {
                 usersCollection.document(currentUser.uid)
                     .collection("customLocations")
@@ -80,9 +86,10 @@ class SettingsRepository(private val context: Context) { // Context might still 
             documentRef.set(locationToSave, SetOptions.merge())
                 .await()
             println("Custom location saved to Firestore successfully for user: ${currentUser.uid}, location: ${locationToSave.name}")
+            SaveResult.Success
         } catch (e: Exception) {
             println("Error saving custom location to Firestore: ${e.message}")
-            throw e
+            SaveResult.FirestoreError(e.message)
         }
     }
 

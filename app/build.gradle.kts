@@ -27,6 +27,8 @@ android {
         buildConfigField("String", "GEMINI_API_KEY", "\"${properties.getProperty("GEMINI_API_KEY", "")}\"")
         buildConfigField("String", "MAPS_API_KEY", "\"${properties.getProperty("MAPS_API_KEY", "")}\"")
         buildConfigField("String", "WEATHER_API_KEY", "\"${properties.getProperty("WEATHER_API_KEY", "")}\"")
+
+        manifestPlaceholders["MAPS_API_KEY"] = properties.getProperty("MAPS_API_KEY", "")
     }
 
     buildFeatures {
@@ -114,6 +116,11 @@ dependencies {
     // Google GenAI SDK
     implementation("com.google.ai.client.generativeai:generativeai:0.9.0")
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // Google Maps for Compose
+    implementation("com.google.android.gms:play-services-maps:18.2.0")
+    implementation("com.google.maps.android:maps-compose:4.3.3")
+    implementation("com.google.android.libraries.places:places:3.4.0")
 
     // Lifecycle KTX for lifecycleScope
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.7.0")

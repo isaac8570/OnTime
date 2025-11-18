@@ -51,6 +51,7 @@ import com.OnTime.ontime.data.repositories.LocationRepository
 import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.service.AndroidLocationService
+import com.OnTime.ontime.ui.screen.login.LoginActivity
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.OnTime.ontime.ui.viewmodel.CalendarViewModel
 import com.OnTime.ontime.ui.viewmodel.MainViewModel
@@ -190,7 +191,7 @@ fun MainScreen(
                         val gso = GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN).build()
                         val googleSignInClient = GoogleSignIn.getClient(context, gso)
                         googleSignInClient.signOut().addOnCompleteListener {
-                            val intent = Intent(context, AuthActivity::class.java)
+                            val intent = Intent(context, LoginActivity::class.java)
                             intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
                             context.startActivity(intent)
                             (context as? Activity)?.finish()
