@@ -55,10 +55,6 @@ class CalendarRepository(private val context: Context) {
                     val endTime = event.end?.dateTime?.value ?: event.end?.date?.value
 
                     if (startTime != null && endTime != null) {
-                        val destinationLatLng = event.location?.let {
-                            LocationConverter.addressToLatLng(context, it)
-                        }
-
                         CalendarEvent(
                             id = event.id ?: "",
                             title = event.summary ?: "제목 없음",
@@ -66,7 +62,7 @@ class CalendarRepository(private val context: Context) {
                             startTime = startTime,
                             endTime = endTime,
                             description = event.description,
-                            destinationLatLng = destinationLatLng
+                            destinationLatLng = null // 위치 변환 로직 제거
                         )
                     } else null
                 }
