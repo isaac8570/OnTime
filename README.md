@@ -1,5 +1,5 @@
 # OnTime - 비서형 AI 경로 및 알림 앱
-<img width="1101" height="1529" alt="Image" src="https://github.com/user-attachments/assets/c8c58ce7-25f2-4d27-8aed-dc6aee79b194" />
+<img width="2792" height="1836" alt="Image" src="https://github.com/user-attachments/assets/d9d4462c-33ff-4bc0-8bad-8af0cc30b784" />
 ## 현재 구현 상태
 
 ✅ **구현 완료:**
