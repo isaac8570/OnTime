@@ -5,25 +5,27 @@
 ✅ **구현 완료:**
 - **Firebase Authentication** (Google Sign-In)
 - **Gemini API 연동** (알림 메시지 생성 및 테스트)
+- **Google Maps Directions API 연동** (경로 계산 로직)
+- **WorkManager 백그라운드 작업 로직** (주기적인 경로 계산)
+- **알림 스케줄링 로직** (지정된 시간에 알림 예약)
+- **기상청 API 연동** (날씨 정보 조회)
+- **Jetpack Compose UI** (일정 목록, 카드 등)
 - 전체 프로젝트 구조 및 패키지 구성
-- UI 레이어 (Activity, Fragment, ViewModel)
+- UI 레이어 (Activity, Compose Screens, ViewModel)
 - Data 레이어 (Models, Repositories)
 - API 레이어 (Retrofit 서비스 인터페이스)
 - Service 레이어 (Worker, Notification, Auth)
 - Util 레이어 (Constants, DateUtil, Logger, LocationConverter)
-- 레이아웃 XML 파일 (5개)
 - 리소스 파일 (strings.xml, colors.xml)
 - Gradle 빌드 설정
 
 🟡 **부분 구현:**
-- **Google Calendar API 연동** (최근 10개 일정 읽기)
-- **알림 표시 로직** (즉시 표시는 가능, 스케줄링 미구현)
+- **Google Calendar API 연동** (`getEvents` 구현, `getEventById` 미구현)
+- **알림 로직** (기본 알림 및 스케줄링 구현, 출발 확인 반복 알림 미구현)
 
 🔨 **구현 필요 (TODO):**
-- **Google Maps Directions API 연동** (경로 계산 로직)
-- **WorkManager 백그라운드 작업 로직** (경로 계산, 알림 반복)
-- **알림 스케줄링 로직** (지정된 시간에 알림 예약)
-- **RecyclerView Adapter 구현** (캘린더 일정 목록 표시)
+- **WorkManager 백그라운드 작업 로직** (출발 확인 반복 알림)
+- **사용자 설정 기능 강화** (알림 톤, 기본 이동 수단 등 UI 연동)
 
 ## 시작하기
 
@@ -48,7 +50,7 @@ const val GEMINI_API_KEY = "YOUR_GEMINI_API_KEY"
 
 ### 3. Firebase 설정
 1. Firebase Console에서 프로젝트 생성
-2. Android 앱 추가 (패키지명: `com.yourcompany.ontime`)
+2. Android 앱 추가 (패키지명: `com.OnTime.ontime`)
 3. `google-services.json` 파일을 `app/` 디렉토리에 추가
 4. Authentication, Cloud Messaging 활성화
 
@@ -71,55 +73,70 @@ cd OnTime
 ```
 OnTime (Root Project)
 ├── build.gradle.kts (project)  // 프로젝트 설정
-├── build.gradle.kts (app)      // 앱 모듈 종속성 및 설정
-├── AndroidManifest.xml         // 앱 컴포넌트 및 권한 정의
-├── res
-│   ├── values
-│   │   ├── strings.xml         // 모든 문자열 리소스
-│   │   └── colors.xml          // 디자인 색상 정의
-└── app/src/main/kotlin/com/yourcompany/ontime
+├── app/build.gradle.kts      // 앱 모듈 종속성 및 설정
+├── app/src/main/AndroidManifest.xml         // 앱 컴포넌트 및 권한 정의
+└── app/src/main/kotlin/com/OnTime/ontime
     └── ... (하위 Kotlin 패키지)
 ```
 
-### 2. Kotlin 소스 코드 구조 (com/yourcompany/ontime)
+### 2. Kotlin 소스 코드 구조 (com/OnTime/ontime)
 
 ```
-app/src/main/kotlin/com/yourcompany/ontime
+app/src/main/kotlin/com/OnTime/ontime
 ├── api (외부 서비스 통신)
-│   ├── DirectionsService.kt   // Google Maps Directions API
-│   ├── GeminiApiService.kt    // Gemini API (LLM 알림 문구 생성)
-│   ├── PlacesApiService.kt    // Google Maps Places API (Autocomplete)
-│   └── RetrofitClient.kt      // Retrofit 인스턴스 설정
+│   ├── DirectionsService.kt      // Google Maps Directions API
+│   ├── GeminiApiService.kt       // Gemini API (LLM 알림 문구 생성)
+│   ├── KmaWeatherApiService.kt   // 기상청 날씨 API
+│   ├── PlacesApiService.kt       // Google Maps Places API (Autocomplete)
+│   └── RetrofitClient.kt         // Retrofit 인스턴스 설정
 │
 ├── data (데이터 모델 및 저장소)
 │   ├── models
-│   │   ├── CalendarEvent.kt   // 캘린더 일정 데이터 모델
-│   │   └── UserPreferences.kt // 사용자 설정 (톤, 교통수단) 모델
+│   │   ├── CalendarEvent.kt      // 캘린더 일정 데이터 모델
+│   │   ├── UserPreferences.kt    // 사용자 설정 (톤, 교통수단) 모델
+│   │   └── ... (기타 데이터 모델)
 │   └── repositories
-│       ├── CalendarRepository.kt  // Google Calendar API 통신 로직
-│       └── SettingsRepository.kt  // 사용자 설정 저장/로드 로직
+│       ├── CalendarRepository.kt     // Google Calendar API 통신
+│       ├── LocationRepository.kt     // 위치 정보
+│       ├── NotificationRepository.kt // 알림 기록
+│       ├── SettingsRepository.kt     // 사용자 설정
+│       ├── TravelDataRepository.kt   // 이동 데이터
+│       ├── TravelLogRepository.kt    // 이동 기록
+│       ├── TravelTimeRepository.kt   // 이동 시간
+│       └── WeatherRepository.kt      // 날씨 정보
+│
+├── manager (주요 기능 관리)
+│   ├── TravelDetectionManager.kt // 이동 감지
+│   └── TravelMonitorManager.kt   // 이동 모니터링
 │
 ├── service (백그라운드 작업 및 알림)
-│   ├── RouteCalculationWorker.kt  // WorkManager: 경로 계산 및 알림 시간 예약 핵심 로직
-│   ├── NotificationScheduler.kt   // AlarmManager/FCM 알림 예약 관리
-│   ├── NotificationManager.kt     // Android 알림 채널 및 표시
-│   ├── ReminderWorker.kt          // WorkManager: "출발했는지 묻는 반복" 알림 처리
-│   └── AuthService.kt             // Firebase Authentication 처리
+│   ├── AndroidLocationService.kt     // 위치 서비스
+│   ├── AuthService.kt                // Firebase 인증
+│   ├── NotificationManager.kt        // Android 알림 채널 및 표시
+│   ├── NotificationScheduler.kt      // 알림 스케줄링
+│   ├── ReminderWorker.kt             // 출발 확인 반복 알림 (미구현)
+│   └── RouteCalculationWorker.kt     // 경로 계산 및 알림 시간 예약
 │
-├── ui (사용자 인터페이스)
-│   ├── MainActivity.kt            // 메인 화면 및 네비게이션 컨테이너
-│   ├── CalendarListFragment.kt    // 일정 목록 표시 화면 (메인)
-│   ├── EventDetailFragment.kt     // 경로 상세 계산 결과 화면
-│   ├── SettingsActivity.kt        // 환경 설정 화면
-│   ├── AuthActivity.kt            // 구글 로그인/인증 화면
-│   └── viewmodel
-│       └── CalendarViewModel.kt   // 일정 데이터 관리 ViewModel
+├── ui (사용자 인터페이스 - Jetpack Compose)
+│   ├── screen/login
+│   │   ├── LoginActivity.kt
+│   │   └── LoginScreen.kt
+│   ├── viewmodel
+│   │   ├── CalendarViewModel.kt
+│   │   ├── MainViewModel.kt
+│   │   └── ...
+│   ├── MainActivity.kt               // 메인 화면 (Jetpack Compose Host)
+│   ├── SettingsActivity.kt           // 설정 화면
+│   └── ... (기타 UI 파일)
 │
-└── util (공통 유틸리티)
-    ├── Constants.kt           // API 키, 상수 정의
-    ├── DateUtil.kt            // 날짜 및 시간 유틸리티
-    ├── Logger.kt              // 커스텀 로깅
-    └── LocationConverter.kt   // 주소-위경도 변환 헬퍼
+├── util (공통 유틸리티)
+│   ├── Constants.kt           // API 키, 상수 정의
+│   ├── DateUtil.kt            // 날짜 및 시간 유틸리티
+│   ├── LocationConverter.kt   // 주소-위경도 변환
+│   └── Logger.kt              // 커스텀 로깅
+│
+└── worker
+    └── CalendarSyncWorker.kt      // 캘린더 동기화 작업
 ```
 
 ## 구글 캘린더 - 경로 계산 및 알림 아이디어
