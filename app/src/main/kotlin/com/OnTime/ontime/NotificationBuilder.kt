@@ -52,7 +52,7 @@ class NotificationBuilder {
             response.text
         } catch (e: Exception) {
             // API 호출 실패 시 로그를 남기고 null을 반환합니다.
-            println("Error generating notification: ${e.message}")
+            com.OnTime.ontime.util.Logger.e("Error generating notification", e)
             null
         }
     }

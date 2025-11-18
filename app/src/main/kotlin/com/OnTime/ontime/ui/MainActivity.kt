@@ -11,6 +11,11 @@ import androidx.activity.compose.setContent
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -33,6 +38,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -121,7 +129,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, androidx.compose.foundation.ExperimentalFoundationApi::class)
 @Composable
 fun MainScreen(
     onSettingsClick: () -> Unit,
@@ -131,13 +139,19 @@ fun MainScreen(
     val context = LocalContext.current
     val permissions = arrayOf(
         Manifest.permission.ACCESS_FINE_LOCATION,
-        Manifest.permission.ACCESS_COARSE_LOCATION
+        Manifest.permission.ACCESS_COARSE_LOCATION,
+        Manifest.permission.READ_CALENDAR
     )
 
     val launcher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissionsMap ->
         val areGranted = permissionsMap.values.all { it }
+        if (areGranted) {
+            calendarViewModel.loadEventsWithTravelTime()
+        } else {
+            Toast.makeText(context, "권한이 필요합니다.", Toast.LENGTH_SHORT).show()
+        }
     }
 
     LaunchedEffect(Unit) {
@@ -146,56 +160,47 @@ fun MainScreen(
         }
         if (!arePermissionsGranted) {
             launcher.launch(permissions)
-        }
-        calendarViewModel.loadEventsWithTravelTime()
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
-            mainViewModel.generatePreDepartureNotification() // Generate notification message on launch
+        } else {
+            calendarViewModel.loadEventsWithTravelTime()
         }
     }
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
-    val isLoadingMore by calendarViewModel.isLoadingMore.observeAsState(initial = false) // New
-    val travelMode by calendarViewModel.travelMode.observeAsState(initial = Constants.MODE_TRANSIT)
-    // Removed old notificationMessage and weatherStatus from MainViewModel
-    // val notificationMessage by mainViewModel.notificationMessage.observeAsState()
-    val weatherStatus by mainViewModel.weatherStatus.observeAsState() // Still useful for general weather display
-    val isLoadingMessage by mainViewModel.isLoading.observeAsState(initial = false)
-
-    val preDepartureNotificationMessage by mainViewModel.preDepartureNotificationMessage.observeAsState()
+    val isLoadingMore by calendarViewModel.isLoadingMore.observeAsState(initial = false)
 
     Scaffold(
+        containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
-                        Text("OnTime", fontWeight = FontWeight.Bold, fontSize = 24.sp)
-                        Text("오늘의 일정", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+                    Text("OnTime", fontWeight = FontWeight.Bold, fontSize = 24.sp, color = MaterialTheme.colorScheme.primary)
                 },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.primary
+                ),
                 actions = {
                     IconButton(onClick = {
                         val intent = Intent(context, AlarmTestActivity::class.java)
                         context.startActivity(intent)
                     }) {
-                        Icon(Icons.Default.Alarm, "테스트 알림")
+                        Icon(Icons.Default.Alarm, "테스트 알림", tint = MaterialTheme.colorScheme.onBackground)
                     }
-                    // Custom Location Settings Icon
                     IconButton(onClick = {
                         val intent = Intent(context, CustomLocationSettingsActivity::class.java)
                         context.startActivity(intent)
                     }) {
-                        Icon(Icons.Filled.Person, "사용자 정의 위치 설정")
+                        Icon(Icons.Filled.Person, "사용자 정의 위치 설정", tint = MaterialTheme.colorScheme.onBackground)
                     }
-                    // Personalized pre-departure notification icon - now navigates to list page
                     IconButton(onClick = {
                         val intent = Intent(context, NotificationListPageActivity::class.java)
                         context.startActivity(intent)
                     }) {
-                        Icon(Icons.Outlined.Notifications, "알림 내역") // Changed contentDescription to "알림 내역"
+                        Icon(Icons.Outlined.Notifications, "알림 내역", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = onSettingsClick) {
-                        Icon(Icons.Default.Settings, "설정")
+                        Icon(Icons.Default.Settings, "설정", tint = MaterialTheme.colorScheme.onBackground)
                     }
                     IconButton(onClick = {
                         com.google.firebase.auth.FirebaseAuth.getInstance().signOut()
@@ -208,117 +213,63 @@ fun MainScreen(
                             (context as? Activity)?.finish()
                         }
                     }) {
-                        Icon(Icons.Default.ExitToApp, "로그아웃")
+                        Icon(Icons.Default.ExitToApp, "로그아웃", tint = MaterialTheme.colorScheme.onBackground)
                     }
                 }
             )
         },
-
     ) { padding ->
-        Column(modifier = Modifier
-            .fillMaxSize()
-            .padding(padding)) {
-
-            // Section for Weather logic
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-
-
-                /* Removed ETA Notification Card - replaced by pre-departure notification
-                // Card for ETA Notification
-                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (isLoadingMessage && notificationMessage == null) {
-                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
-                        } else {
-                            Text(
-                                text = notificationMessage ?: "버튼을 눌러 예상 시간을 확인하세요.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        Button(onClick = { mainViewModel.generateRealtimeNotificationMessage() }) {
-                            Text("예상 시간 확인하기 (실시간)")
-                        }
-                    }
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+        ) {
+            if (isLoadingEvents && events.isEmpty()) {
+                Column(
+                    modifier = Modifier.align(Alignment.Center),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(50.dp),
+                        color = MaterialTheme.colorScheme.primary,
+                        strokeWidth = 5.dp
+                    )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        text = "캘린더의 일정을 불러오고 있어요!",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
-                */
+            } else if (events.isEmpty()) {
+                EmptyState(Modifier.align(Alignment.Center))
+            } else {
+                val listState = rememberLazyListState()
 
-
-
-
-            }
-
-
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .weight(1f)
-            ) {
-                if (isLoadingEvents) {
-                    Column(
-                        modifier = Modifier.align(Alignment.Center),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.Center
-                    ) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(50.dp),
-                            color = MaterialTheme.colorScheme.primary,
-                            strokeWidth = 5.dp
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            text = "캘린더의 일정을 불러오고 있어요!",
-                            style = MaterialTheme.typography.bodyLarge,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    items(events, key = { it.id }) { event ->
+                        ModernEventCard(
+                            event = event,
+                            modifier = Modifier.animateItemPlacement()
                         )
                     }
-                } else if (events.isEmpty()) {
-                    EmptyState(Modifier.align(Alignment.Center))
-                } else {
-                    val listState = rememberLazyListState()
-
-                    LazyColumn(
-                        state = listState,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
-                        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        items(events) { event ->
-                            ModernEventCard(event = event)
-                        }
-                        if (isLoadingMore) {
-                            item {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(16.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    CircularProgressIndicator()
-                                }
+                    if (isLoadingMore) {
+                        item {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                             }
                         }
-                    }
-
-                    LaunchedEffect(listState) {
-                        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
-                            .collect { index ->
-                                if (index != null && index >= events.size - 1 && !isLoadingMore) {
-                                    calendarViewModel.loadMoreEvents()
-                                }
-                            }
                     }
                 }
             }
@@ -330,7 +281,8 @@ fun MainScreen(
 fun EmptyState(modifier: Modifier = Modifier) {
     Column(
         modifier = modifier,
-        horizontalAlignment = Alignment.CenterHorizontally
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
     ) {
         Text(
             text = "📅",
@@ -338,11 +290,12 @@ fun EmptyState(modifier: Modifier = Modifier) {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "일정이 없습니다",
-            style = MaterialTheme.typography.titleMedium
+            text = "오늘의 일정이 없습니다",
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "Google 캘린더에 일정을 추가해보세요",
+            text = "Google 캘린더에 일정을 추가해보세요.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -350,172 +303,150 @@ fun EmptyState(modifier: Modifier = Modifier) {
 }
 
 @Composable
-fun ModernEventCard(event: CalendarEvent) {
-    val dateFormat = SimpleDateFormat("MM월 dd일", Locale.KOREA)
+fun ModernEventCard(event: CalendarEvent, modifier: Modifier = Modifier) {
     val timeFormat = SimpleDateFormat("HH:mm", Locale.KOREA)
     val now = System.currentTimeMillis()
-    val timeUntil = (event.startTime - now) / (60 * 1000)
+    val timeUntil = (event.startTime - now).coerceAtLeast(0) / (60 * 1000) // Ensure non-negative
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp)
+    val urgencyColor = when {
+        timeUntil < 30 -> MaterialTheme.colorScheme.secondary
+        timeUntil < 60 -> MaterialTheme.colorScheme.primary.copy(alpha = 0.7f)
+        else -> MaterialTheme.colorScheme.primary
+    }
+
+    var visible by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        visible = true
+    }
+
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(durationMillis = 500)) + slideInVertically(initialOffsetY = { it / 2 }, animationSpec = tween(durationMillis = 500))
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(
-                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-                            MaterialTheme.colorScheme.surface
-                        )
-                    )
-                )
-                .padding(20.dp)
+        Card(
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            border = BorderStroke(2.dp, urgencyColor)
         ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Top
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp)
             ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = event.title,
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 22.sp
-                    )
-                    event.description?.let {
-                        Text(
-                            text = it,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 4.dp)
-                        )
-                    }
-                }
-
-                Surface(
-                    shape = RoundedCornerShape(12.dp),
-                    color = when {
-                        timeUntil < 30 -> MaterialTheme.colorScheme.errorContainer
-                        timeUntil < 60 -> MaterialTheme.colorScheme.tertiaryContainer
-                        else -> MaterialTheme.colorScheme.secondaryContainer
-                    },
-                    modifier = Modifier.padding(start = 8.dp)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.Top
                 ) {
                     Text(
+                        text = event.title,
+                        modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Text(
                         text = when {
+                            timeUntil < 1 -> "곧 시작"
                             timeUntil < 60 -> "${timeUntil}분 후"
                             timeUntil < 1440 -> "${timeUntil / 60}시간 후"
                             else -> "${timeUntil / 1440}일 후"
                         },
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .padding(start = 12.dp)
+                            .background(urgencyColor, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 12.dp, vertical = 6.dp),
                         fontSize = 12.sp,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary
                     )
                 }
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.padding(bottom = 8.dp)
-            ) {
-                Icon(
-                    Icons.Outlined.AccessTime,
-                    contentDescription = null,
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "${dateFormat.format(Date(event.startTime))} ${timeFormat.format(Date(event.startTime))}",
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-            }
+                // Info Rows
+                InfoRow(icon = Icons.Outlined.AccessTime, text = "${SimpleDateFormat("MM월 dd일 HH:mm", Locale.KOREA).format(Date(event.startTime))} 시작")
 
-            event.location?.let {
+                event.location?.let {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    InfoRow(icon = Icons.Outlined.LocationOn, text = it)
+                }
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                // Bottom Info Chips
                 Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(bottom = 8.dp)
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    Icon(
-                        Icons.Outlined.LocationOn,
-                        contentDescription = null,
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                    val travelIcon = when (event.finalTravelMode) {
+                        Constants.MODE_DRIVING -> Icons.Outlined.DirectionsCar
+                        Constants.MODE_WALKING -> Icons.Outlined.DirectionsWalk
+                        else -> Icons.Outlined.DirectionsTransit
+                    }
+                    InfoChip(
+                        modifier = Modifier.weight(1f),
+                        icon = travelIcon,
+                        label = "예상 이동시간",
+                        value = event.travelDuration ?: "..."
                     )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "도착: $it",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurface
+                    InfoChip(
+                        modifier = Modifier.weight(1f),
+                        icon = Icons.Outlined.Notifications,
+                        label = "추천 출발시간",
+                        value = event.departureTime?.let { timeFormat.format(Date(it)) } ?: "..."
                     )
                 }
             }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            val travelIcon = when (event.finalTravelMode) {
-                Constants.MODE_DRIVING -> Icons.Outlined.DirectionsCar
-                Constants.MODE_WALKING -> Icons.Outlined.DirectionsWalk
-                else -> Icons.Outlined.DirectionsTransit
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
-                    .padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                InfoChip(
-                    icon = travelIcon,
-                    label = "이동시간",
-                    value = event.travelDuration ?: "계산 중..."
-                )
-                InfoChip(
-                    icon = Icons.Outlined.Notifications,
-                    label = "출발시간",
-                    value = event.departureTime?.let { timeFormat.format(Date(it)) } ?: "계산 중..."
-                )
-            }
-
-            // Debug Status Text
-            Text(
-                text = "Debug: ${event.debugStatus}",
-                modifier = Modifier.padding(top = 8.dp),
-                fontSize = 10.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-            )
         }
     }
 }
 
 @Composable
-fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun InfoRow(icon: androidx.compose.ui.graphics.vector.ImageVector, text: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
         Icon(
-            icon,
+            imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(16.dp),
+            modifier = Modifier.size(18.dp),
             tint = MaterialTheme.colorScheme.primary
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+fun InfoChip(modifier: Modifier = Modifier, icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(MaterialTheme.colorScheme.background)
+            .padding(vertical = 12.dp, horizontal = 8.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            modifier = Modifier.size(24.dp),
+            tint = MaterialTheme.colorScheme.primary
+        )
         Text(
             text = label,
-            fontSize = 10.sp,
+            fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         Text(
             text = value,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
         )
     }
 }

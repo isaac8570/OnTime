@@ -15,6 +15,7 @@ import com.OnTime.ontime.ui.theme.OnTimeTheme
 import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
@@ -70,6 +71,7 @@ class AlarmTestActivity : ComponentActivity() {
 
             OnTimeTheme {
                 AlarmTestScreen(onSendTestNotification = {
+                    Toast.makeText(context, "테스트 알림을 요청했습니다. 곧 도착합니다.", Toast.LENGTH_SHORT).show()
                     viewModel.sendTestNotification()
                 })
             }
