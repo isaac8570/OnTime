@@ -31,5 +31,5 @@
     This is the Web Client ID from the Firebase Console.
     Replace this with your own Web Client ID.
     -->
-    <string name="default_web_client_id" translatable="false">982541927149-2adlpe42e1l4lcu5hcc2k8m9e4arnjeg.apps.googleusercontent.com</string>
+    <string name="default_web_client_id" translatable="false">982541927149-k0krkbaktrujret3vrhh13r2q9ea3v9l.apps.googleusercontent.com</string>
 </resources>
