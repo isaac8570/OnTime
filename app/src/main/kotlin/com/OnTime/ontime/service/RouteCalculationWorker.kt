@@ -45,7 +45,7 @@ class RouteCalculationWorker(
 
     override suspend fun doWork(): Result {
         return try {
-            val upcomingEvents = calendarRepository.getEvents()
+            val (upcomingEvents, _) = calendarRepository.getEvents(5)
 
             for (event in upcomingEvents) {
                 if (!event.location.isNullOrEmpty()) {

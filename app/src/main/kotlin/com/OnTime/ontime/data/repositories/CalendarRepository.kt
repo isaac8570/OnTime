@@ -21,45 +21,40 @@ class CalendarRepository(private val context: Context) {
     private var lastAccountEmail: String? = null
 
     // ★★★ [수정] getEvents 메서드에서 불필요한 context 파라미터를 제거합니다. ★★★
-    suspend fun getEvents(): List<CalendarEvent> {
+    suspend fun getEvents(maxResults: Int, pageToken: String? = null): Pair<List<CalendarEvent>, String?> {
         return withContext(Dispatchers.IO) {
             try {
-                // 이제 클래스 멤버인 context를 사용합니다.
                 val account = GoogleSignIn.getLastSignedInAccount(context)
                 if (account == null) {
-                    return@withContext emptyList()
+                    return@withContext Pair(emptyList(), null)
                 }
 
-                // 서비스 재사용으로 초기화 시간 단축
-                // getOrCreateService도 클래스 멤버 context를 사용하도록 수정합니다.
                 val service = getOrCreateService(account.email)
 
-                val now = DateTime(System.currentTimeMillis())
-                val oneWeekLater = DateTime(System.currentTimeMillis() + 7 * 24 * 60 * 60 * 1000)
+                val threeHoursAgo = DateTime(System.currentTimeMillis() - 3 * 60 * 60 * 1000)
 
-                val events = service.events().list("primary")
-                    .setMaxResults(20)
-                    .setTimeMin(now)
-                    .setTimeMax(oneWeekLater)
+                val eventsRequest = service.events().list("primary")
+                    .setMaxResults(maxResults)
+                    .setTimeMin(threeHoursAgo)
                     .setOrderBy("startTime")
                     .setSingleEvents(true)
-                    .setFields("items(id,summary,location,start,end,description)")
-                    .execute()
+                    .setFields("nextPageToken,items(id,summary,location,start,end,description)")
 
-                if (events.items.isNullOrEmpty()) {
-                    return@withContext emptyList()
+                pageToken?.let {
+                    eventsRequest.setPageToken(it)
                 }
 
-                events.items.mapNotNull { event ->
+                val events = eventsRequest.execute()
+
+                if (events.items.isNullOrEmpty()) {
+                    return@withContext Pair(emptyList(), events.nextPageToken)
+                }
+
+                val calendarEvents = events.items.mapNotNull { event ->
                     val startTime = event.start?.dateTime?.value ?: event.start?.date?.value
                     val endTime = event.end?.dateTime?.value ?: event.end?.date?.value
 
                     if (startTime != null && endTime != null) {
-                        val destinationLatLng = event.location?.let {
-                            // 클래스 멤버 context를 사용합니다.
-                            LocationConverter.addressToLatLng(context, it)
-                        }
-
                         CalendarEvent(
                             id = event.id ?: "",
                             title = event.summary ?: "제목 없음",
@@ -67,14 +62,15 @@ class CalendarRepository(private val context: Context) {
                             startTime = startTime,
                             endTime = endTime,
                             description = event.description,
-                            destinationLatLng = destinationLatLng
+                            destinationLatLng = null // 위치 변환 로직 제거
                         )
                     } else null
                 }
+                Pair(calendarEvents, events.nextPageToken)
 
             } catch (e: Exception) {
                 Log.e("OnTime", "캘린더 로딩 오류: ${e.message}")
-                emptyList()
+                Pair(emptyList(), null)
             }
         }
     }

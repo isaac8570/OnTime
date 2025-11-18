@@ -36,11 +36,11 @@ class CalendarSyncWorker(
                 travelDataRepository // Corrected
             )
 
-            // ★★★ [수정] getEvents() 호출 시 불필요한 인자를 제거합니다. ★★★
-            val events = calendarRepository.getEvents()
+            // ★★★ [수정] getEvents() 호출을 수정하고 결과를 분해합니다. ★★★
+            val (eventList, _) = calendarRepository.getEvents(10)
 
-            if (events.isNotEmpty()) {
-                travelMonitorManager.onCalendarEventsFetched(events)
+            if (eventList.isNotEmpty()) {
+                travelMonitorManager.onCalendarEventsFetched(eventList)
                 Result.success()
             } else {
                 println("No calendar events fetched.")

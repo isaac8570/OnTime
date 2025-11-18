@@ -73,8 +73,8 @@ class MainViewModel(
         viewModelScope.launch {
             try {
                 // 1. 다음 예정된 이벤트 가져오기
-                val upcomingEvents = calendarRepository.getEvents()
-                val nextEvent = upcomingEvents.firstOrNull { it.startTime > System.currentTimeMillis() } // 가장 가까운 미래 이벤트
+                val (events, _) = calendarRepository.getEvents(5)
+                val nextEvent = events.firstOrNull { it.startTime > System.currentTimeMillis() } // 가장 가까운 미래 이벤트
 
                 if (nextEvent == null || nextEvent.location.isNullOrBlank()) {
                     _preDepartureNotificationMessage.postValue("다음 예정된 이벤트가 없거나 위치 정보가 없습니다.")

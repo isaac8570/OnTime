@@ -15,6 +15,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
@@ -29,6 +30,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.livedata.observeAsState
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -148,6 +150,7 @@ fun MainScreen(
 
     val events by calendarViewModel.events.observeAsState(initial = emptyList())
     val isLoadingEvents by calendarViewModel.isLoading.observeAsState(initial = false)
+    val isLoadingMore by calendarViewModel.isLoadingMore.observeAsState(initial = false) // New
     // Removed old notificationMessage and weatherStatus from MainViewModel
     // val notificationMessage by mainViewModel.notificationMessage.observeAsState()
     val weatherStatus by mainViewModel.weatherStatus.observeAsState() // Still useful for general weather display
@@ -198,15 +201,7 @@ fun MainScreen(
                 }
             )
         },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = {
-                    calendarViewModel.testRAGSystem()
-                }
-            ) {
-                Text("🧠")
-            }
-        }
+
     ) { padding ->
         Column(modifier = Modifier
             .fillMaxSize()
@@ -219,28 +214,7 @@ fun MainScreen(
                     .padding(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Card for Weather Check
-                Card(elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (isLoadingMessage && weatherStatus == null) {
-                            CircularProgressIndicator(modifier = Modifier.padding(bottom = 8.dp))
-                        } else {
-                            Text(
-                                text = weatherStatus ?: "버튼을 눌러 현재 날씨를 확인하세요.",
-                                style = MaterialTheme.typography.bodyMedium,
-                                modifier = Modifier.padding(bottom = 8.dp)
-                            )
-                        }
-                        Button(onClick = { mainViewModel.checkCurrentWeather() }) {
-                            Text("날씨 확인하기")
-                        }
-                    }
-                }
+
 
                 /* Removed ETA Notification Card - replaced by pre-departure notification
                 // Card for ETA Notification
@@ -267,38 +241,42 @@ fun MainScreen(
                 }
                 */
 
-                // Button to launch DataCollectionActivity
-                Button(
-                    onClick = {
-                        val intent = Intent(context, DataCollectionActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("데이터 수집 페이지로 이동")
-                }
 
-                // Button to launch TestPageActivity
-                Button(
-                    onClick = {
-                        val intent = Intent(context, TestPageActivity::class.java)
-                        context.startActivity(intent)
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Text("테스트 페이지로 이동")
-                }
+
+
             }
 
 
-            // Existing UI for calendar events
-            Box(modifier = Modifier.weight(1f)) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .weight(1f)
+            ) {
                 if (isLoadingEvents) {
-                    CircularProgressIndicator(modifier = Modifier.align(Alignment.Center))
+                    Column(
+                        modifier = Modifier.align(Alignment.Center),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(50.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 5.dp
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "캘린더의 일정을 불러오고 있어요!",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else if (events.isEmpty()) {
                     EmptyState(Modifier.align(Alignment.Center))
                 } else {
+                    val listState = rememberLazyListState()
+
                     LazyColumn(
+                        state = listState,
                         modifier = Modifier
                             .fillMaxSize()
                             .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)),
@@ -308,6 +286,27 @@ fun MainScreen(
                         items(events) { event ->
                             ModernEventCard(event)
                         }
+                        if (isLoadingMore) {
+                            item {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(16.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    CircularProgressIndicator()
+                                }
+                            }
+                        }
+                    }
+
+                    LaunchedEffect(listState) {
+                        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+                            .collect { index ->
+                                if (index != null && index >= events.size - 1 && !isLoadingMore) {
+                                    calendarViewModel.loadMoreEvents()
+                                }
+                            }
                     }
                 }
             }

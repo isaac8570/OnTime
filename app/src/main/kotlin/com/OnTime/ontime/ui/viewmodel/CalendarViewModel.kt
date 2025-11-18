@@ -14,6 +14,7 @@ import com.OnTime.ontime.data.repositories.LocationRepository
 import com.OnTime.ontime.data.repositories.TravelTimeRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
 import com.OnTime.ontime.util.Constants
+import com.OnTime.ontime.util.LocationConverter
 import kotlinx.coroutines.launch
 
 class CalendarViewModel(
@@ -29,6 +30,11 @@ class CalendarViewModel(
     private val _isLoading = MutableLiveData<Boolean>()
     val isLoading: LiveData<Boolean> = _isLoading
 
+    private val _isLoadingMore = MutableLiveData<Boolean>(false)
+    val isLoadingMore: LiveData<Boolean> = _isLoadingMore
+
+    private val _nextPageToken = MutableLiveData<String?>(null)
+
     private val _travelMode = MutableLiveData<String>(Constants.MODE_TRANSIT)
     val travelMode: LiveData<String> = _travelMode
 
@@ -39,11 +45,11 @@ class CalendarViewModel(
         _isLoading.value = true
         viewModelScope.launch {
             try {
-                // ★★★ [수정] getEvents() 호출 시 불필요한 인자를 제거합니다. ★★★
-                val events = calendarRepository.getEvents()
+                val (events, nextPageToken) = calendarRepository.getEvents(10)
                 _events.postValue(events)
+                _nextPageToken.postValue(nextPageToken)
 
-                // Calculate travel times for all events
+                // Calculate travel times for all events in parallel
                 calculateTravelTimesForEvents(events)
             } catch (e: Exception) {
                 // Handle error
@@ -53,25 +59,63 @@ class CalendarViewModel(
         }
     }
 
-    private suspend fun calculateTravelTimesForEvents(events: List<CalendarEvent>) {
+    fun loadMoreEvents() {
+        if (_isLoadingMore.value == true || _nextPageToken.value == null) {
+            return
+        }
+
+        _isLoadingMore.value = true
+        viewModelScope.launch {
+            try {
+                val (newEvents, nextPageToken) = calendarRepository.getEvents(10, _nextPageToken.value)
+                val currentEvents = _events.value.orEmpty().toMutableList()
+                currentEvents.addAll(newEvents)
+                _events.postValue(currentEvents)
+                _nextPageToken.postValue(nextPageToken)
+
+                // Calculate travel times for newly loaded events in parallel
+                calculateTravelTimesForEvents(newEvents)
+            } catch (e: Exception) {
+                // Handle error
+            } finally {
+                _isLoadingMore.postValue(false)
+            }
+        }
+    }
+
+    private fun calculateTravelTimesForEvents(events: List<CalendarEvent>) {
         val currentMode = _travelMode.value ?: Constants.MODE_TRANSIT
 
         events.forEach { event ->
-            try {
-                val travelInfo = travelTimeRepository.calculateTravelTimeForEvent(event, currentMode)
-                if (travelInfo != null) {
-                    // 자동 학습 예약
-                    autoLearningService.scheduleAutoLearning(event, travelInfo.durationText)
+            viewModelScope.launch {
+                try {
+                    // 1. Process only if location exists and lat/lng is not yet converted
+                    if (event.location != null && event.destinationLatLng == null) {
+                        val latLng = LocationConverter.addressToLatLng(getApplication(), event.location)
 
-                    val updatedEvents = _events.value?.map {
-                        if (it.id == event.id) {
-                            it.copy(travelDuration = travelInfo.durationText)
-                        } else it
+                        // 2. If geocoding is successful, calculate travel time
+                        if (latLng != null) {
+                            val eventWithLatLng = event.copy(destinationLatLng = latLng)
+                            val travelInfo = travelTimeRepository.calculateTravelTimeForEvent(eventWithLatLng, currentMode)
+
+                            if (travelInfo != null) {
+                                // Schedule auto-learning
+                                autoLearningService.scheduleAutoLearning(eventWithLatLng, travelInfo.durationText)
+
+                                // 3. Update UI for the specific event
+                                val currentEvents = _events.value.orEmpty()
+                                val updatedEvents = currentEvents.map {
+                                    if (it.id == event.id) {
+                                        eventWithLatLng.copy(travelDuration = travelInfo.durationText)
+                                    } else it
+                                }
+                                _events.postValue(updatedEvents)
+                            }
+                        }
                     }
-                    _events.postValue(updatedEvents ?: emptyList())
+                } catch (e: Exception) {
+                    // Handle individual event processing error
                 }
-            } catch (e: Exception) {
-                // 개별 이벤트 오류 처리
             }
         }
     }
@@ -180,10 +224,10 @@ class CalendarViewModel(
                 val notificationManager = com.OnTime.ontime.service.NotificationManager(getApplication())
                 // val historyService = com.OnTime.ontime.service.NotificationHistoryService(getApplication()) // REMOVED
 
-                val realEvents = calendarRepository.getEvents()
+                val realEvents = calendarRepository.getEvents(15)
 
-                if (realEvents.isNotEmpty()) {
-                    val firstEvent = realEvents.first()
+                if (realEvents.first.isNotEmpty()) {
+                    val firstEvent = realEvents.first.first()
 
                     val currentLocation = locationRepository.getCurrentLocation()
                     val myLocationText = if (currentLocation != null) {
