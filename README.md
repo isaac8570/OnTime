@@ -7,7 +7,7 @@
 
 OnTime은 당신의 캘린더와 실시간 데이터(기상, 시간, 특성)를 분석하여, 출발시간에 맞춰 가장 완벽한 알림을 보내주는 AI 비서 앱입니다.
 
-<img width="3135" height="2523" alt="Image" src="https://github.com/user-attachments/assets/1173d63b-9e19-4128-a755-5e256986bf24" />
+<img width="5568" height="4325" alt="Image" src="https://github.com/user-attachments/assets/f735a6a5-4e0a-4c70-b276-f75b03b53845" />
 
 ---
 ## 🏗 System Architecture (핵심 구조)
