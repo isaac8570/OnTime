@@ -49,6 +49,14 @@ class ViewModelFactory(
                     settingsRepository // Pass new dependency
                 ) as T
             }
+            // CustomLocationViewModel을 생성해야 하는 경우
+            modelClass.isAssignableFrom(CustomLocationViewModel::class.java) -> {
+                @Suppress("UNCHECKED_CAST")
+                CustomLocationViewModel(
+                    application,
+                    settingsRepository
+                ) as T
+            }
             // 지원하지 않는 ViewModel 클래스인 경우 예외 발생
             else -> throw IllegalArgumentException("Unknown ViewModel class: ${modelClass.name}")
         }

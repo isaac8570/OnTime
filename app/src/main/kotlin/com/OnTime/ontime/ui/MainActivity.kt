@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
+import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.DirectionsCar
@@ -164,6 +165,13 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    // Custom Location Settings Icon
+                    IconButton(onClick = {
+                        val intent = Intent(context, CustomLocationSettingsActivity::class.java)
+                        context.startActivity(intent)
+                    }) {
+                        Icon(Icons.Filled.Person, "사용자 정의 위치 설정")
+                    }
                     // Personalized pre-departure notification icon - now navigates to list page
                     IconButton(onClick = {
                         val intent = Intent(context, NotificationListPageActivity::class.java)
