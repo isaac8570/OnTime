@@ -39,19 +39,7 @@ class TravelTimeRepository(
             Logger.d("Using explicit event location: '$destinationAddress'")
         }
 
-        // Priority 2: CustomLocationManager
-        if (destinationAddress.isNullOrBlank()) {
-            val customLoc = customLocationManager.findLocationFromTitle(event.title)
-            if (customLoc != null) {
-                destinationAddress = customLoc
-                locationSource = "Custom Location Manager"
-                Logger.d("Found location from CustomLocationManager for '${event.title}': '$destinationAddress'")
-            } else {
-                Logger.d("CustomLocationManager did not find a match for '${event.title}'.")
-            }
-        }
-
-        // Priority 3: LocationExtractorService (AI-based)
+        // Priority 2: LocationExtractorService (AI-based)
         if (destinationAddress.isNullOrBlank()) {
             val aiLoc = locationExtractor.extractLocationFromText(eventTitle = event.title, eventDescription = event.description)
             if (aiLoc != null) {
@@ -60,6 +48,18 @@ class TravelTimeRepository(
                 Logger.d("Extracted location with AI for '${event.title}': '$destinationAddress'")
             } else {
                 Logger.d("AI Location Extractor did not find a match for '${event.title}'.")
+            }
+        }
+
+        // Priority 3: CustomLocationManager
+        if (destinationAddress.isNullOrBlank()) {
+            val customLoc = customLocationManager.findLocationFromTitle(event.title)
+            if (customLoc != null) {
+                destinationAddress = customLoc
+                locationSource = "Custom Location Manager"
+                Logger.d("Found location from CustomLocationManager for '${event.title}': '$destinationAddress'")
+            } else {
+                Logger.d("CustomLocationManager did not find a match for '${event.title}'.")
             }
         }
 

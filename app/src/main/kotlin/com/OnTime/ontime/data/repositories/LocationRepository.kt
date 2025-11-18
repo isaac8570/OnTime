@@ -67,9 +67,9 @@ class LocationRepository(private val context: Context) {
     ): TravelInfo? {
         val origin = "${originLatLng.first},${originLatLng.second}"
         val destination = "${destinationLatLng.first},${destinationLatLng.second}"
-        val departureTimeInSeconds = departureTime?.div(1000)
+        val departureTimeInSeconds = if (mode == Constants.MODE_TRANSIT) departureTime?.div(1000) else null
 
-        Logger.d("Calculating travel time. Origin: $origin, Destination: $destination, Mode: $mode, DepartureTime: $departureTime")
+        Logger.d("Calculating travel time. Origin: $origin, Destination: $destination, Mode: $mode, DepartureTime(sec): $departureTimeInSeconds")
 
         return try {
             val response = directionsService.getDirections(
