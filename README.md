@@ -1,5 +1,5 @@
 # OnTime - 비서형 AI 경로 및 알림 앱
-<img src="images/mlops_pipeline.png" width="600" alt="MLOps 자동화 파이프라인">
+<img width="1101" height="1529" alt="Image" src="https://github.com/user-attachments/assets/c8c58ce7-25f2-4d27-8aed-dc6aee79b194" />
 ## 현재 구현 상태
 
 ✅ **구현 완료:**
