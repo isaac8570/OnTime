@@ -21,6 +21,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExitToApp
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Alarm
 import androidx.compose.material.icons.outlined.AccessTime
 import androidx.compose.material.icons.outlined.DirectionsCar
 import androidx.compose.material.icons.outlined.LocationOn
@@ -173,6 +174,12 @@ fun MainScreen(
                     }
                 },
                 actions = {
+                    IconButton(onClick = {
+                        val intent = Intent(context, AlarmTestActivity::class.java)
+                        context.startActivity(intent)
+                    }) {
+                        Icon(Icons.Default.Alarm, "테스트 알림")
+                    }
                     // Custom Location Settings Icon
                     IconButton(onClick = {
                         val intent = Intent(context, CustomLocationSettingsActivity::class.java)

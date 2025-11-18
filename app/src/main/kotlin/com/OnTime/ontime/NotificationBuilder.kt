@@ -14,7 +14,7 @@ class NotificationBuilder {
 
     // BuildConfig에서 API 키를 가져와 GenerativeModel을 초기화합니다.
     private val generativeModel = GenerativeModel(
-        modelName = "gemini-pro", // 또는 다른 적절한 모델
+        modelName = "gemini-2.5-flash", // 또는 다른 적절한 모델
         apiKey = BuildConfig.GEMINI_API_KEY
     )
 

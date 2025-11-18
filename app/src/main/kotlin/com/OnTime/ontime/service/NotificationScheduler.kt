@@ -71,7 +71,7 @@ class NotificationScheduler(
             if (alarmManager.canScheduleExactAlarms()) {
                 alarmManager.setExactAndAllowWhileIdle(
                     AlarmManager.RTC_WAKEUP,
-                    departureTime,
+                    departureTime - (10 * 60 * 1000), // 10 minutes before departure
                     pendingIntent
                 )
             } else {
@@ -79,7 +79,7 @@ class NotificationScheduler(
                 // 또는 사용자에게 설정 화면으로 안내하여 권한을 요청할 수 있습니다.
                 alarmManager.setWindow(
                     AlarmManager.RTC_WAKEUP,
-                    departureTime - (5 * 60 * 1000), // 5분 전부터
+                    departureTime - (10 * 60 * 1000), // 10분 전부터
                     10 * 60 * 1000, // 10분 이내에 알람을 실행
                     pendingIntent
                 )
@@ -88,7 +88,7 @@ class NotificationScheduler(
             // Android 12 미만 버전에서는 기존 방식대로 즉시 설정합니다.
             alarmManager.setExactAndAllowWhileIdle(
                 AlarmManager.RTC_WAKEUP,
-                departureTime,
+                departureTime - (10 * 60 * 1000), // 10 minutes before departure
                 pendingIntent
             )
         }
@@ -106,6 +106,43 @@ class NotificationScheduler(
 
         pendingIntent?.let {
             alarmManager.cancel(it)
+        }
+    }
+
+    /**
+     * For testing purposes, generates and shows a notification immediately.
+     */
+    suspend fun sendInstantTestNotification() {
+        val testEventName = "성수역에서 친구와 약속"
+        val testTravelTime = 25 // 25 minutes
+        val testEventTime = LocalTime.now().plusMinutes(testTravelTime.toLong() + 10) // Event is in 35 mins, departure in 10 mins
+
+        // Fetch user preferences for message tone
+        val userPreferences = settingsRepository.getUserPreferences()
+
+        // Generate the notification message with Gemini
+        val notificationMessage = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            notificationBuilder.generateNotificationMessage(
+                userPreferences = userPreferences,
+                eventName = testEventName,
+                eventTime = testEventTime,
+                travelTime = testTravelTime,
+                actualTravelTime = null, // No actual travel time for test
+                weatherInfo = "맑음", // Mock weather
+                userPattern = "테스트 시나리오"
+            )
+        } else {
+            "$testEventName 약속 10분 전입니다! 지금 출발하세요."
+        }
+
+        // Show the notification immediately
+        if (notificationMessage != null) {
+            val notificationManager = NotificationManager(context)
+            notificationManager.showDepartureNotification(
+                title = "📲 출발 시간 알림 (테스트)",
+                message = notificationMessage,
+                eventId = "test_notification_${System.currentTimeMillis()}"
+            )
         }
     }
 }
