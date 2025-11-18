@@ -7,7 +7,7 @@
 
 OnTime은 당신의 캘린더와 실시간 데이터(기상, 시간, 특성)를 분석하여, 출발시간에 맞춰 가장 완벽한 알림을 보내주는 AI 비서 앱입니다.
 
-<img width="500" height="500" alt="Image" src="https://github.com/user-attachments/assets/a0338507-d400-4897-b7b9-8a07194dd168" />
+<img width="200" height="200" alt="Image" src="https://github.com/user-attachments/assets/a0338507-d400-4897-b7b9-8a07194dd168" />
 
 ---
 
@@ -82,3 +82,5 @@ OnTime의 핵심 목표는 단순히 "도착지 온도는 30도"라고 알려주
 - "첫눈이 와요. 오늘 데이트에 늦지 않게 15분 빨리 나가봅시다! 설레는 하루 되세요"
 
 이러한 목표를 달성하기 위해, 우리는 복잡한 머신러닝 모델을 개발하는 대신 Gemini AI의 강력한 추론 능력을 활용합니다. **프롬프트 엔지니어링(Prompt Engineering)** 을 통해 날씨, 일정, 시간 등 주어진 데이터를 바탕으로 위와 같은 창의적이고 유용한 메시지를 생성하도록 유도합니다. 이 접근 방식은 **'규칙 기반 추론 강화 생성 (RAG, Retriveal-Augmented Generation)'** 의 원리를 활용하는 것으로, 별도의 복잡한 모델 학습 없이도 사용자의 로그와 사용기록을 통해 고품질의 개인화된 경험을 제공할 수 있게 합니다.
+
+[![OnTime 시연영상](https://img.youtube.com/vi/b0lpyPl9NKU/0.jpg)](https://youtube.com/shorts/b0lpyPl9NKU)
