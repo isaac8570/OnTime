@@ -7,6 +7,9 @@ import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import android.content.pm.PackageManager
+import android.util.Base64
+import android.util.Log
 import com.OnTime.ontime.ui.MainActivity
 import com.OnTime.ontime.ui.theme.OnTimeTheme
 import com.google.android.gms.auth.api.signin.GoogleSignIn
@@ -19,6 +22,33 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 
 class LoginActivity : ComponentActivity() {
+
+    private fun logSignatureSha1() {
+        try {
+            val packageInfo = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNING_CERTIFICATES)
+            } else {
+                @Suppress("DEPRECATION")
+                packageManager.getPackageInfo(packageName, android.content.pm.PackageManager.GET_SIGNATURES)
+            }
+
+            val signatures = if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+                packageInfo.signingInfo.apkContentsSigners
+            } else {
+                @Suppress("DEPRECATION")
+                packageInfo.signatures
+            }
+
+            for (signature in signatures) {
+                val md = java.security.MessageDigest.getInstance("SHA-1")
+                md.update(signature.toByteArray())
+                val sha1 = android.util.Base64.encodeToString(md.digest(), android.util.Base64.NO_WRAP)
+                android.util.Log.e("MY_APP_SIGNATURE", "SHA-1: $sha1")
+            }
+        } catch (e: Exception) {
+            android.util.Log.e("MY_APP_SIGNATURE", "Error getting signature", e)
+        }
+    }
 
     private lateinit var googleSignInClient: GoogleSignInClient
     private lateinit var firebaseAuth: FirebaseAuth
@@ -46,6 +76,8 @@ class LoginActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        logSignatureSha1()
 
         initGoogleSignIn()
         firebaseAuth = FirebaseAuth.getInstance()
