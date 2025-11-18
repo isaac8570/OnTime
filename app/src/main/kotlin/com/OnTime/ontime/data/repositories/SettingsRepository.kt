@@ -6,6 +6,7 @@ import com.OnTime.ontime.data.models.CustomLocation
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
+import com.OnTime.ontime.util.Logger
 import kotlinx.coroutines.tasks.await
 
 class SettingsRepository(private val context: Context) { // Context might still be needed for other things, keep it for now.
@@ -23,7 +24,7 @@ class SettingsRepository(private val context: Context) { // Context might still 
     suspend fun getUserPreferences(): UserPreferences {
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            println("Warning: No user logged in. Returning default UserPreferences.")
+            Logger.d("No user logged in. Returning default UserPreferences.")
             return UserPreferences()
         }
 
@@ -35,7 +36,7 @@ class SettingsRepository(private val context: Context) { // Context might still 
                 .await()
             document.toObject(UserPreferences::class.java) ?: UserPreferences()
         } catch (e: Exception) {
-            println("Error fetching user preferences from Firestore: ${e.message}")
+            Logger.e("Error fetching user preferences from Firestore", e)
             UserPreferences() // Return default preferences on error
         }
     }
@@ -43,7 +44,7 @@ class SettingsRepository(private val context: Context) { // Context might still 
     suspend fun saveUserPreferences(preferences: UserPreferences) {
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            println("Warning: No user logged in. User preferences not saved to Firestore.")
+            Logger.d("No user logged in. User preferences not saved to Firestore.")
             return
         }
 
@@ -53,26 +54,30 @@ class SettingsRepository(private val context: Context) { // Context might still 
                 .document("userPreferences")
                 .set(preferences, SetOptions.merge())
                 .await()
-            println("User preferences saved to Firestore successfully for user: ${currentUser.uid}")
+            Logger.d("User preferences saved to Firestore successfully for user: ${currentUser.uid}")
         } catch (e: Exception) {
-            println("Error saving user preferences to Firestore: ${e.message}")
+            Logger.e("Error saving user preferences to Firestore", e)
             throw e // Re-throw to propagate the error
         }
     }
 
     suspend fun saveCustomLocation(location: CustomLocation): SaveResult {
+        Logger.d("Attempting to save custom location: ${location.name}")
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            println("Warning: No user logged in. Custom location not saved to Firestore.")
+            Logger.d("Save failed: No user logged in.")
             return SaveResult.UserNotLoggedIn
         }
+        Logger.d("User is logged in with UID: ${currentUser.uid}")
 
         return try {
             val documentRef = if (location.id.isEmpty()) {
+                Logger.d("Location has no ID, creating new document.")
                 usersCollection.document(currentUser.uid)
                     .collection("customLocations")
                     .document() // Auto-generate ID
             } else {
+                Logger.d("Location has ID '${location.id}', updating existing document.")
                 usersCollection.document(currentUser.uid)
                     .collection("customLocations")
                     .document(location.id)
@@ -83,31 +88,36 @@ class SettingsRepository(private val context: Context) { // Context might still 
                 location
             }
 
+            Logger.d("Saving to Firestore: $locationToSave")
             documentRef.set(locationToSave, SetOptions.merge())
                 .await()
-            println("Custom location saved to Firestore successfully for user: ${currentUser.uid}, location: ${locationToSave.name}")
+            Logger.i("Custom location saved successfully to document ${documentRef.id} for user: ${currentUser.uid}")
             SaveResult.Success
         } catch (e: Exception) {
-            println("Error saving custom location to Firestore: ${e.message}")
+            Logger.e("Error saving custom location to Firestore", e)
             SaveResult.FirestoreError(e.message)
         }
     }
 
     suspend fun getCustomLocations(): List<CustomLocation> {
+        Logger.d("Attempting to fetch custom locations.")
         val currentUser = auth.currentUser
         if (currentUser == null) {
-            println("Warning: No user logged in. Returning empty list of custom locations.")
+            Logger.d("Fetch failed: No user logged in. Returning empty list.")
             return emptyList()
         }
+        Logger.d("Fetching locations for user UID: ${currentUser.uid}")
 
         return try {
             val querySnapshot = usersCollection.document(currentUser.uid)
                 .collection("customLocations")
                 .get()
                 .await()
-            querySnapshot.documents.mapNotNull { it.toObject(CustomLocation::class.java) }
+            val locations = querySnapshot.documents.mapNotNull { it.toObject(CustomLocation::class.java) }
+            Logger.i("Successfully fetched ${locations.size} custom locations from Firestore.")
+            locations
         } catch (e: Exception) {
-            println("Error fetching custom locations from Firestore: ${e.message}")
+            Logger.e("Error fetching custom locations from Firestore", e)
             emptyList() // Return empty list on error
         }
     }

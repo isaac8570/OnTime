@@ -26,7 +26,8 @@ class CalendarViewModel(
     application: Application,
     private val calendarRepository: CalendarRepository,
     private val weatherRepository: WeatherRepository,
-    private val locationRepository: LocationRepository
+    private val locationRepository: LocationRepository,
+    private val travelTimeRepository: TravelTimeRepository // Injected from Factory
 ) : AndroidViewModel(application) {
 
     private val _events = MutableLiveData<List<CalendarEvent>>()
@@ -43,7 +44,6 @@ class CalendarViewModel(
     private val _travelMode = MutableLiveData<String>(Constants.MODE_TRANSIT)
     val travelMode: LiveData<String> = _travelMode
 
-    private val travelTimeRepository = TravelTimeRepository(application, locationRepository)
     private val autoLearningService = com.OnTime.ontime.service.AutoLearningService(application)
 
     fun loadEventsWithTravelTime() {
@@ -98,8 +98,7 @@ class CalendarViewModel(
         }
     }
 
-    private suspend fun calculateTravelTimesFor(events: List<CalendarEvent>): List<CalendarEvent> = withContext(
-        Dispatchers.Default) {
+    private suspend fun calculateTravelTimesFor(events: List<CalendarEvent>): List<CalendarEvent> = withContext(Dispatchers.Default) {
         val currentMode = _travelMode.value ?: Constants.MODE_TRANSIT
         Logger.d("Calculating travel times for ${events.size} events with mode '$currentMode' in parallel.")
 
@@ -114,14 +113,13 @@ class CalendarViewModel(
                         eventWithStatus.copy(
                             travelDuration = travelInfo.durationText,
                             debugStatus = "성공: ${travelInfo.durationText} - 경로: ${travelInfo.routeDetails ?: "상세 정보 없음"}"
-                        ).also {
-                            // This should ideally be dispatched to the Main thread if it interacts with UI-bound services
-                            // For now, assuming autoLearningService is safe to be called from a background thread.
-                            // autoLearningService.scheduleAutoLearning(it, travelInfo.durationText)
-                        }
+                        )
                     } else {
                         Logger.d("Event '${event.title}': Failed to calculate travel time.")
-                        eventWithStatus.copy(debugStatus = "실패: 이동시간 계산 불가")
+                        eventWithStatus.copy(
+                            location = "장소모름",
+                            debugStatus = "실패: 이동시간 계산 불가"
+                        )
                     }
                 } catch (e: Exception) {
                     Logger.e("Event '${event.title}': Exception during calculation.", e)
