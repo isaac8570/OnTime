@@ -7,7 +7,13 @@
 
 OnTime은 당신의 캘린더와 실시간 데이터(기상, 시간, 특성)를 분석하여, 출발시간에 맞춰 가장 완벽한 알림을 보내주는 AI 비서 앱입니다.
 
-<img width="200" height="200" alt="Image" src="https://github.com/user-attachments/assets/a0338507-d400-4897-b7b9-8a07194dd168" />
+---
+## 🏗 System Architecture (핵심 구조)
+
+OnTime은 **Serverless Architecture**를 기반으로 구축되어 안정성과 비용 효율성을 극대화했습니다.  
+**Gemini LLM**과 **RandomForest 회귀 모델**이 유기적으로 결합된 하이브리드 AI 시스템입니다.
+
+<img width="2792" height="1836" alt="Image" src="https://github.com/user-attachments/assets/d9d4462c-33ff-4bc0-8bad-8af0cc30b784" />
 
 ---
 
@@ -20,12 +26,6 @@ OnTime은 당신의 캘린더와 실시간 데이터(기상, 시간, 특성)를 
 **OnTime**은 이 모든 불안함을 AI 기술로 해결합니다. 저희는 단순한 알림 앱을 넘어, 사용자의 상황과 스타일에 맞는 개인화된 조언을 제공하여 당신의 하루를 가장 완벽하게 계획하는 AI 비서를 만들었습니다.
 
 단순 정보 제공을 넘어, "도착지에 비 소식이 있으니 우산을 챙기세요" 또는 "오늘 날씨가 정말 좋네요! 약속 장소 근처의 공원을 산책해보는 건 어떠세요?"와 같이, 기술에 감성을 더한 사용자 경험을 제공하는 것을 목표로 합니다.
-
----
-## 🏗 System Architecture (핵심 구조)
-OnTime은 **Serverless Architecture**를 기반으로 구축되어 안정성과 비용 효율성을 극대화했습니다.  
-**Gemini LLM**과 **RandomForest 회귀 모델**이 유기적으로 결합된 하이브리드 AI 시스템입니다.
-<img width="2792" height="1836" alt="Image" src="https://github.com/user-attachments/assets/d9d4462c-33ff-4bc0-8bad-8af0cc30b784" />
 
 ---
 
@@ -82,5 +82,7 @@ OnTime의 핵심 목표는 단순히 "도착지 온도는 30도"라고 알려주
 - "첫눈이 와요. 오늘 데이트에 늦지 않게 15분 빨리 나가봅시다! 설레는 하루 되세요"
 
 이러한 목표를 달성하기 위해, 우리는 복잡한 머신러닝 모델을 개발하는 대신 Gemini AI의 강력한 추론 능력을 활용합니다. **프롬프트 엔지니어링(Prompt Engineering)** 을 통해 날씨, 일정, 시간 등 주어진 데이터를 바탕으로 위와 같은 창의적이고 유용한 메시지를 생성하도록 유도합니다. 이 접근 방식은 **'규칙 기반 추론 강화 생성 (RAG, Retriveal-Augmented Generation)'** 의 원리를 활용하는 것으로, 별도의 복잡한 모델 학습 없이도 사용자의 로그와 사용기록을 통해 고품질의 개인화된 경험을 제공할 수 있게 합니다.
+
+아래 썸네일 클릭시 시연영상으로 이동합니다! 더 자세한 내용은 서비스 기획서 pdf를 참고해주세요 :)
 
 [![OnTime 시연영상](https://img.youtube.com/vi/b0lpyPl9NKU/0.jpg)](https://youtube.com/shorts/b0lpyPl9NKU)
