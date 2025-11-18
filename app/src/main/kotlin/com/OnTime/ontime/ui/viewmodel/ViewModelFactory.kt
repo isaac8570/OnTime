@@ -8,7 +8,10 @@ import com.OnTime.ontime.data.repositories.CalendarRepository
 import com.OnTime.ontime.data.repositories.LocationRepository
 import com.OnTime.ontime.data.repositories.SettingsRepository // Import SettingsRepository
 import com.OnTime.ontime.data.repositories.WeatherRepository
+import com.OnTime.ontime.data.repositories.TravelTimeRepository
 import com.OnTime.ontime.service.AndroidLocationService
+import com.OnTime.ontime.service.NotificationScheduler
+import com.OnTime.ontime.util.CustomLocationManager
 
 /**
  * ViewModel에 필요한 의존성(Repository 등)을 주입하기 위한 범용 팩토리 클래스입니다.
@@ -24,6 +27,11 @@ class ViewModelFactory(
 ) : ViewModelProvider.Factory {
 
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        // Dependencies that can be created here
+        val customLocationManager = CustomLocationManager(settingsRepository)
+        val travelTimeRepository = TravelTimeRepository(application, locationRepository, customLocationManager)
+        val notificationScheduler = NotificationScheduler(application, notificationBuilder, settingsRepository)
+
         // 생성하려는 ViewModel 클래스에 따라 분기하여 적절한 인스턴스를 반환합니다.
         return when {
             // CalendarViewModel을 생성해야 하는 경우
@@ -32,8 +40,9 @@ class ViewModelFactory(
                 CalendarViewModel(
                     application,
                     calendarRepository,
-                    weatherRepository,
-                    locationRepository
+                    locationRepository,
+                    travelTimeRepository,
+                    notificationScheduler
                 ) as T
             }
             // MainViewModel을 생성해야 하는 경우

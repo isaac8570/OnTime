@@ -14,7 +14,7 @@ class NotificationBuilder {
 
     // BuildConfig에서 API 키를 가져와 GenerativeModel을 초기화합니다.
     private val generativeModel = GenerativeModel(
-        modelName = "gemini-pro", // 또는 다른 적절한 모델
+        modelName = "gemini-2.5-flash", // 또는 다른 적절한 모델
         apiKey = BuildConfig.GEMINI_API_KEY
     )
 
@@ -52,7 +52,7 @@ class NotificationBuilder {
             response.text
         } catch (e: Exception) {
             // API 호출 실패 시 로그를 남기고 null을 반환합니다.
-            println("Error generating notification: ${e.message}")
+            com.OnTime.ontime.util.Logger.e("Error generating notification", e)
             null
         }
     }

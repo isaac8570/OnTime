@@ -11,7 +11,8 @@ interface DirectionsService {
         @Query("origin") origin: String,
         @Query("destination") destination: String,
         @Query("mode") mode: String,
-        @Query("key") apiKey: String
+        @Query("key") apiKey: String,
+        @Query("departure_time") departureTime: Long?
     ): Response<DirectionsResponse>
 }
 
@@ -26,7 +27,8 @@ data class Route(
 
 data class Leg(
     val duration: Duration,
-    val distance: Distance
+    val distance: Distance,
+    val steps: List<DirectionStep>?
 )
 
 data class Duration(
@@ -37,4 +39,19 @@ data class Duration(
 data class Distance(
     val value: Int,
     val text: String
+)
+
+data class DirectionStep(
+    val html_instructions: String?,
+    val travel_mode: String?,
+    val transit_details: TransitDetails?
+)
+
+data class TransitDetails(
+    val line: Line?
+)
+
+data class Line(
+    val name: String?,
+    val short_name: String?
 )
